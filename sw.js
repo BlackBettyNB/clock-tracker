@@ -1,14 +1,10 @@
-const CACHE_NAME = 'clock-tracker-v1';
+const CACHE_NAME = 'clock-tracker-v2';
 
 const URLS_TO_CACHE = [
   './index.html',
-  './manifest.json',
-  'https://unpkg.com/react@18/umd/react.production.min.js',
-  'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
-  'https://unpkg.com/@babel/standalone/babel.min.js'
+  './manifest.json'
 ];
 
-// Install: cache everything on first load
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -17,20 +13,14 @@ self.addEventListener('install', event => {
   );
 });
 
-// Activate: clear out old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(key => key !== CACHE_NAME)
-          .map(key => caches.delete(key))
-      )
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
 
-// Fetch: serve from cache, fall back to network
 self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request)
