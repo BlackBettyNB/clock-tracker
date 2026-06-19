@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Clock Tracker" />
+  <meta name="theme-color" content="#111318" />
+  <link rel="manifest" href="./manifest.json" />
+  <title>Clock Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #111318; overflow: hidden; }
+    #root { height: 100%; }
+    input, button, select, textarea { font-family: inherit; }
+    ::-webkit-scrollbar { display: none; }
+    input[type="time"]::-webkit-calendar-picker-indicator,
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .catch(err => console.log('SW registration failed:', err));
+      });
+    }
+  </script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ─── Constants ───────────────────────────────────────────────────────────
+    const STORAGE_KEY = 'jack-clock-tracker-v1';
+
+    const DEFAULT_SETTINGS = {
+      dayRate: 15.13,
+      nightRate: 17.70,
+      unpaidBreakHrs: 0.5,
+      shiftLengthHrs: 12,
+      currentRotation: 'nights',
+      payPeriodStart: '2026-04-24',
+      payPeriodWeeks: 4,
+      reminderTime: '18:00',
+      notificationsEnabled: false,
+    };
+
+    const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const DAYS   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+    const pad        = n  => String(n).padStart(2, '0');
+    const formatTime = d  => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const formatDate = d  => d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+    const toKey      = d  => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const parseKey   = k  => { const [y,m,d] = k.split('-').map(Number); return new Date(y, m-1, d); };
+
+    const getMonthGrid = (year, month) => {
+      const first    = new Date(year, month, 1);
+      let   startDay = first.getDay() - 1;
+      if (startDay < 0) startDay = 6;
+      const days  = new Date(year, month + 1, 0).getDate();
+      const cells = [];
+      for (let i = 0; i < startDay; i++) cells.push(null);
+      for (let d = 1; d <= days; d++)    cells.push(d);
+      return cells;
+    };
+
+    const calcPaidHours = (clockIn, clockOut, breakHrs) => {
+      if (!clockIn || !clockOut) return 0;
+      const [h1, m1] = clockIn.split(':').map(Number);
+      const [h2, m2] = clockOut.split(':').map(Number);
+      let mins = (h2 * 60 + m2) - (h1 * 60 + m1);
+      if (mins < 0) mins += 1440; // overnight shift
+      return Math.max(0, mins / 60 - breakHrs);
+    };
+
+    const calcGross = (hours, shiftType, settings) =>
+      hours * (shiftType === 'night' ? settings.nightRate : settings.dayRate);
+
+    // ─── Storage ─────────────────────────────────────────────────────────────
+    const loadData = () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          parsed.settings = { ...DEFAULT_SETTINGS, ...parsed.settings };
+          return parsed;
+        }
+      } catch (e) { /* fall through */ }
+      return { entries: {}, settings: { ...DEFAULT_SETTINGS } };
+    };
+
+    const saveData = data => {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+      catch (e) { console.error('Save failed:', e); }
+    };
+
+    // ─── Main Component ───────────────────────────────────────────────────────
+    function ClockTracker() {
+      const [data,         setData        ] = useState(() => loadData());
+      const [now,          setNow         ] = useState(new Date());
+      const [view,         setView        ] = useState('today');
+      const [calMonth,     setCalMonth    ] = useState(new Date().getMonth());
+      const [calYear,      setCalYear     ] = useState(new Date().getFullYear());
+      const [selectedDay,  setSelectedDay ] = useState(null);
+      const [editModal,    setEditModal   ] = useState(null);
+      const [confirmModal, setConfirmModal] = useState(null);
+      const [exportText,   setExportText  ] = useState(null);
+      const [toast,        setToast       ] = useState(null);
+      const toastTimer    = useRef(null);
+      const reminderTimer = useRef(null);
+
+      // Clock tick
+      useEffect(() => {
+        const iv = setInterval(() => setNow(new Date()), 1000);
+        return () => clearInterval(iv);
+      }, []);
+
+      // Persist on every change
+      useEffect(() => { saveData(data); }, [data]);
+
+      // Notification reminder scheduler
+      useEffect(() => {
+        if (!data.settings.notificationsEnabled || !data.settings.reminderTime) return;
+        if (reminderTimer.current) clearTimeout(reminderTimer.current);
+
+        const [rh, rm] = data.settings.reminderTime.split(':').map(Number);
+        const target   = new Date();
+        target.setHours(rh, rm, 0, 0);
+        let delay = target.getTime() - Date.now();
+        if (delay < 0) delay += 86400000; // try again tomorrow
+
+        reminderTimer.current = setTimeout(() => {
+          if (Notification.permission !== 'granted') return;
+          const fresh = loadData();
+          const entry = fresh.entries[toKey(new Date())];
+          if (entry?.clockIn && !entry?.clockOut) {
+            new Notification('⏰ Clock Out Reminder', {
+              body: `You clocked in at ${entry.clockIn} — don't forget to clock out!`,
+              tag:  'clock-out',
+            });
+          }
+        }, delay);
+
+        return () => { if (reminderTimer.current) clearTimeout(reminderTimer.current); };
+      }, [data.settings.notificationsEnabled, data.settings.reminderTime]);
+
+      // ── Helpers ────────────────────────────────────────────────────────────
+      const showToast = msg => {
+        setToast(msg);
+        if (toastTimer.current) clearTimeout(toastTimer.current);
+        toastTimer.current = setTimeout(() => setToast(null), 2500);
+      };
+
+      const save = newData => setData(newData);
+
+      const settings  = data.settings;
+      const todayKey  = toKey(now);
+      const todayEntry = data.entries[todayKey] || null;
+      const isClockedIn = !!(todayEntry?.clockIn && !todayEntry?.clockOut);
+
+      // ── Actions ────────────────────────────────────────────────────────────
+      const clockIn = () => {
+        const time  = formatTime(now);
+        const entry = {
+          ...(data.entries[todayKey] || {}),
+          type:      data.entries[todayKey]?.type      || 'regular',
+          shiftType: data.entries[todayKey]?.shiftType || (settings.currentRotation === 'nights' ? 'night' : 'day'),
+          clockIn:   time,
+          clockOut:  null,
+        };
+        save({ ...data, entries: { ...data.entries, [todayKey]: entry } });
+        showToast(`Clocked in at ${time}`);
+      };
+
+      const clockOut = () => {
+        if (!todayEntry) return;
+        const time  = formatTime(now);
+        const entry = { ...todayEntry, clockOut: time };
+        save({ ...data, entries: { ...data.entries, [todayKey]: entry } });
+        showToast(`Clocked out at ${time}`);
+      };
+
+      const setDayType = (dateKey, type) => {
+        const base  = data.entries[dateKey] || { shiftType: settings.currentRotation === 'nights' ? 'night' : 'day' };
+        const entry = { ...base, type };
+        if (type === 'holiday') { delete entry.clockIn; delete entry.clockOut; }
+        save({ ...data, entries: { ...data.entries, [dateKey]: entry } });
+        const label = type === 'holiday' ? '🌴 Marked as holiday' : type === 'overtime' ? 'Marked as overtime' : 'Set to regular';
+        showToast(label);
+      };
+
+      const updateSetting = (key, value) =>
+        save({ ...data, settings: { ...data.settings, [key]: value } });
+
+      const updateEntryField = (dateKey, field, value) => {
+        const base  = data.entries[dateKey] || {
+          type: 'regular',
+          shiftType: settings.currentRotation === 'nights' ? 'night' : 'day',
+        };
+        const entry = { ...base, [field]: value };
+        save({ ...data, entries: { ...data.entries, [dateKey]: entry } });
+      };
+
+      const deleteEntry = dateKey => {
+        const newEntries = { ...data.entries };
+        delete newEntries[dateKey];
+        save({ ...data, entries: newEntries });
+        setEditModal(null);
+        setSelectedDay(null);
+        showToast('Entry deleted');
+      };
+
+      // ── Calculations ───────────────────────────────────────────────────────
+      const getWeekStart = d => {
+        const dt  = new Date(d);
+        const day = dt.getDay();
+        dt.setDate(dt.getDate() - (day === 0 ? 6 : day - 1));
+        dt.setHours(0, 0, 0, 0);
+        return dt;
+      };
+
+      const getTaxYearStart = () => {
+        const y = now.getFullYear();
+        const afterApril6 = now.getMonth() > 3 || (now.getMonth() === 3 && now.getDate() >= 6);
+        return new Date(afterApril6 ? y : y - 1, 3, 6);
+      };
+
+      const calcTotals = () => {
+        let wP=0, mP=0, yP=0, wH=0, mH=0, yH=0;
+        const ws = getWeekStart(now);
+        const ms = new Date(now.getFullYear(), now.getMonth(), 1);
+        const ys = getTaxYearStart();
+
+        Object.entries(data.entries).forEach(([key, e]) => {
+          if (e.type === 'holiday' || !e.clockIn || !e.clockOut) return;
+          const d   = parseKey(key);
+          const hrs = calcPaidHours(e.clockIn, e.clockOut, settings.unpaidBreakHrs);
+          const grs = calcGross(hrs, e.shiftType, settings);
+          if (d >= ws) { wP += grs; wH += hrs; }
+          if (d >= ms) { mP += grs; mH += hrs; }
+          if (d >= ys) { yP += grs; yH += hrs; }
+        });
+        return { wP, mP, yP, wH, mH, yH };
+      };
+
+      const getCurrentPayPeriod = () => {
+        if (!settings.payPeriodStart) return 'Not set';
+        const weeksMs = settings.payPeriodWeeks * 7 * 86400000;
+        let ps        = new Date(settings.payPeriodStart);
+        while (ps.getTime() + weeksMs <= now.getTime()) ps = new Date(ps.getTime() + weeksMs);
+        const pe  = new Date(ps.getTime() + weeksMs - 86400000);
+        const fmt = d => d.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+        return `${fmt(ps)} – ${fmt(pe)}`;
+      };
+
+      // Shift elapsed timer
+      let shiftElapsed = null;
+      if (isClockedIn && todayEntry?.clockIn) {
+        const [h, m]     = todayEntry.clockIn.split(':').map(Number);
+        const startMins  = h * 60 + m;
+        const nowMins    = now.getHours() * 60 + now.getMinutes();
+        let   diff       = nowMins - startMins;
+        if (diff < 0) diff += 1440;
+        const elH        = Math.floor(diff / 60);
+        const elM        = diff % 60;
+        const remTotal   = settings.shiftLengthHrs * 60 - diff;
+        const remH       = Math.floor(Math.max(0, remTotal) / 60);
+        const remM       = Math.floor(Math.max(0, remTotal) % 60);
+        shiftElapsed     = {
+          elapsed:   `${elH}h ${pad(elM)}m`,
+          remaining: remTotal > 0 ? `${remH}h ${pad(remM)}m` : 'Done ✓',
+          done:      remTotal <= 0,
+        };
+      }
+
+      // Export text generator
+      const generateExport = () => {
+        const sorted = Object.entries(data.entries).sort(([a],[b]) => a.localeCompare(b));
+        const { wP, mP, yP, wH, mH, yH } = calcTotals();
+        let t = `CLOCK TRACKER — DATA EXPORT\n`;
+        t += `Generated: ${formatDate(now)} ${formatTime(now)}\n`;
+        t += `Day Rate: £${settings.dayRate}/hr  |  Night Rate: £${settings.nightRate}/hr\n`;
+        t += `Unpaid Break: ${settings.unpaidBreakHrs * 60} min  |  Shift: ${settings.shiftLengthHrs} hrs\n`;
+        t += `Rotation: ${settings.currentRotation}  |  Pay Period: ${getCurrentPayPeriod()}\n\n`;
+        t += `DATE         TYPE        SHIFT   IN     OUT    HRS    GROSS\n`;
+        t += `${'─'.repeat(60)}\n`;
+        sorted.forEach(([key, e]) => {
+          const hrs  = (!e.clockIn || !e.clockOut || e.type === 'holiday') ? 0 : calcPaidHours(e.clockIn, e.clockOut, settings.unpaidBreakHrs);
+          const grs  = calcGross(hrs, e.shiftType, settings);
+          const type = (e.type || 'regular').padEnd(11);
+          const sh   = (e.shiftType || '-').padEnd(7);
+          const ci   = (e.clockIn   || '-').padEnd(6);
+          const co   = (e.clockOut  || '-').padEnd(6);
+          const hr   = hrs.toFixed(1).padEnd(6);
+          t += `${key}  ${type}${sh}${ci}${co}${hr} £${grs.toFixed(2)}\n`;
+        });
+        t += `\n${'─'.repeat(60)}\n`;
+        t += `Week:      ${wH.toFixed(1)} hrs  =  £${wP.toFixed(2)}\n`;
+        t += `Month:     ${mH.toFixed(1)} hrs  =  £${mP.toFixed(2)}\n`;
+        t += `Tax Year:  ${yH.toFixed(1)} hrs  =  £${yP.toFixed(2)}\n`;
+        return t;
+      };
+
+      const handleExport = () => {
+        const text = generateExport();
+        if (navigator.share) {
+          navigator.share({ title: 'Clock Data', text }).catch(() => setExportText(text));
+        } else if (navigator.clipboard) {
+          navigator.clipboard.writeText(text)
+            .then(() => showToast('Copied to clipboard ✓'))
+            .catch(() => setExportText(text));
+        } else {
+          setExportText(text);
+        }
+      };
+
+      const enableNotifications = async () => {
+        if (!('Notification' in window)) { showToast('Notifications not supported on this device'); return; }
+        const perm = await Notification.requestPermission();
+        if (perm === 'granted') { updateSetting('notificationsEnabled', true); showToast('Notifications enabled ✓'); }
+        else showToast('Notification permission denied');
+      };
+
+      // ── Computed ───────────────────────────────────────────────────────────
+      const totals = calcTotals();
+      const rate   = settings.currentRotation === 'nights' ? settings.nightRate : settings.dayRate;
+
+      // ── Styles ─────────────────────────────────────────────────────────────
+      const S = {
+        root:    { background:'#111318', height:'100dvh', color:'#e8eaed', fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", maxWidth:480, margin:'0 auto', display:'flex', flexDirection:'column' },
+        bar:     { background:'#1a1d23', borderBottom:'1px solid #2a2d35', padding:'12px 16px', flexShrink:0 },
+        lbl:     { fontSize:10, color:'#6b7080', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:2 },
+        mono:    { fontFamily:"'SF Mono','Fira Mono',monospace" },
+        statC:   { background:'#252830', borderRadius:8, padding:'7px 10px', flex:1, textAlign:'center' },
+        scroll:  { flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch' },
+        sec:     { padding:16 },
+        card:    { background:'#1a1d23', borderRadius:10, padding:16, marginBottom:12, border:'1px solid #2a2d35' },
+        input:   { background:'#252830', border:'1px solid #3a3d45', borderRadius:8, padding:'10px 12px', color:'#e8eaed', fontSize:15, width:'100%', display:'block' },
+        btn:     (bg, fg='#fff') => ({ padding:'11px 16px', border:'none', borderRadius:8, background:bg, color:fg, fontSize:13, fontWeight:600, cursor:'pointer', flex:1 }),
+        badge:   bg => ({ display:'inline-block', padding:'3px 9px', borderRadius:5, fontSize:11, fontWeight:700, background:bg, color:'#fff' }),
+        nav:     { background:'#1a1d23', borderTop:'1px solid #2a2d35', display:'flex', flexShrink:0 },
+        navB:    a  => ({ flex:1, padding:'12px 0 10px', border:'none', background:'transparent', cursor:'pointer', color: a?'#4a9eff':'#6b7080', fontSize:11, fontWeight: a?700:400, borderTop: a?'2px solid #4a9eff':'2px solid transparent', display:'flex', flexDirection:'column', alignItems:'center', gap:3 }),
+        calDay:  (has, type, today, sel) => ({
+          width:'100%', aspectRatio:'1', border:'none', borderRadius:8, cursor:'pointer', fontSize:13, fontWeight: today?700:400,
+          background: sel?'#4a9eff': has?(type==='overtime'?'#f9731622':type==='holiday'?'#a78bfa22':'#22c55e18'):'#1e2028',
+          color:      sel?'#fff': today?'#4a9eff': has?'#e8eaed':'#4b5060',
+          outline:    today&&!sel?'1px solid #4a9eff44':'none',
+          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2,
+        }),
+        dot:    c  => ({ width:5, height:5, borderRadius:'50%', background:c }),
+        overlay: { position:'fixed', inset:0, background:'#000c', zIndex:200, display:'flex', alignItems:'flex-end', justifyContent:'center' },
+        sheet:   { background:'#1a1d23', borderRadius:'18px 18px 0 0', padding:24, width:'100%', maxWidth:480, maxHeight:'85dvh', overflowY:'auto', border:'1px solid #2a2d35' },
+        toast:   { position:'fixed', top:20, left:'50%', transform:'translateX(-50%)', background:'#4a9eff', color:'#fff', padding:'10px 20px', borderRadius:8, fontSize:14, fontWeight:600, zIndex:300, boxShadow:'0 4px 20px #0008', whiteSpace:'nowrap', pointerEvents:'none' },
+      };
+
+      // ── TODAY VIEW ─────────────────────────────────────────────────────────
+      const renderToday = () => (
+        <div style={S.sec}>
+          {/* Clock */}
+          <div style={{ textAlign:'center', marginBottom:22 }}>
+            <div style={{ ...S.mono, fontSize:54, fontWeight:200, letterSpacing:-2, lineHeight:1, color:'#e8eaed' }}>
+              {pad(now.getHours())}:{pad(now.getMinutes())}
+              <span style={{ fontSize:22, color:'#6b7080' }}>:{pad(now.getSeconds())}</span>
+            </div>
+            <div style={{ fontSize:14, color:'#6b7080', marginTop:6 }}>{formatDate(now)}</div>
+          </div>
+
+          {/* Clock In/Out */}
+          <button
+            style={{ width:'100%', padding:20, border:'none', borderRadius:12, fontSize:20, fontWeight:800, cursor:'pointer', letterSpacing:'0.02em', background: isClockedIn?'#f59e0b':'#22c55e', color: isClockedIn?'#1a1d23':'#fff', marginBottom:12 }}
+            onClick={isClockedIn ? clockOut : clockIn}
+          >
+            {isClockedIn ? '⬛  CLOCK OUT' : '▶  CLOCK IN'}
+          </button>
+
+          {/* Shift progress */}
+          {isClockedIn && shiftElapsed && (
+            <div style={{ ...S.card, display:'flex', justifyContent:'space-between', marginBottom:12 }}>
+              <div>
+                <div style={S.lbl}>Elapsed</div>
+                <div style={{ ...S.mono, fontSize:22, fontWeight:700 }}>{shiftElapsed.elapsed}</div>
+              </div>
+              <div style={{ textAlign:'right' }}>
+                <div style={S.lbl}>Remaining</div>
+                <div style={{ ...S.mono, fontSize:22, fontWeight:700, color: shiftElapsed.done?'#22c55e':'#f59e0b' }}>{shiftElapsed.remaining}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Today entry detail */}
+          {todayEntry && (
+            <div style={{ ...S.card, marginBottom:12 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                <span style={{ fontWeight:600, fontSize:15 }}>Today's shift</span>
+                <span style={S.badge(todayEntry.type==='overtime'?'#f97316':todayEntry.type==='holiday'?'#a78bfa':'#22c55e')}>
+                  {todayEntry.type || 'regular'}
+                </span>
+              </div>
+              <div style={{ fontSize:14, color:'#8b8f98', display:'flex', gap:14, flexWrap:'wrap' }}>
+                <span>In: <strong style={{ color:'#e8eaed' }}>{todayEntry.clockIn||'—'}</strong></span>
+                <span>Out: <strong style={{ color:'#e8eaed' }}>{todayEntry.clockOut||'—'}</strong></span>
+                <span>Shift: <strong style={{ color:'#e8eaed' }}>{todayEntry.shiftType||'—'}</strong></span>
+              </div>
+              {todayEntry.clockIn && todayEntry.clockOut && (() => {
+                const hrs = calcPaidHours(todayEntry.clockIn, todayEntry.clockOut, settings.unpaidBreakHrs);
+                const grs = calcGross(hrs, todayEntry.shiftType, settings);
+                return <div style={{ marginTop:8, fontSize:14, color:'#8b8f98' }}>Paid: <strong style={{ color:'#22c55e' }}>{hrs.toFixed(1)} hrs = £{grs.toFixed(2)}</strong></div>;
+              })()}
+            </div>
+          )}
+
+          {/* Quick type buttons */}
+          <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+            <button style={S.btn(todayEntry?.type==='overtime'?'#f97316':'#252830')}
+              onClick={() => setDayType(todayKey, todayEntry?.type==='overtime'?'regular':'overtime')}>
+              {todayEntry?.type==='overtime' ? '✓ Overtime' : '+ Overtime'}
+            </button>
+            <button style={S.btn(todayEntry?.type==='holiday'?'#a78bfa':'#252830')}
+              onClick={() => setDayType(todayKey, todayEntry?.type==='holiday'?'regular':'holiday')}>
+              {todayEntry?.type==='holiday' ? '✓ Holiday' : '🌴 Holiday'}
+            </button>
+          </div>
+
+          {/* Rotation toggle */}
+          <div style={{ ...S.card, display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:0 }}>
+            <span style={{ fontSize:14, fontWeight:500 }}>Rotation</span>
+            <div style={{ display:'flex', gap:6 }}>
+              {['nights','days'].map(r => (
+                <button key={r} onClick={() => updateSetting('currentRotation', r)} style={{
+                  padding:'7px 16px', border:'none', borderRadius:7, fontSize:13, fontWeight:700, cursor:'pointer',
+                  background: settings.currentRotation===r ? (r==='nights'?'#312e81':'#78350f') : '#252830',
+                  color:      settings.currentRotation===r ? (r==='nights'?'#c4b5fd':'#fcd34d') : '#6b7080',
+                }}>
+                  {r==='nights' ? '🌙 Nights' : '☀️ Days'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+
+      // ── CALENDAR VIEW ──────────────────────────────────────────────────────
+      const renderCalendar = () => {
+        const grid    = getMonthGrid(calYear, calMonth);
+        const prevMo  = () => { if (calMonth===0) { setCalMonth(11); setCalYear(calYear-1); } else setCalMonth(calMonth-1); };
+        const nextMo  = () => { if (calMonth===11) { setCalMonth(0); setCalYear(calYear+1); } else setCalMonth(calMonth+1); };
+
+        return (
+          <div style={S.sec}>
+            {/* Month nav */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+              <button onClick={prevMo} style={{ background:'#252830', border:'none', color:'#e8eaed', padding:'8px 14px', borderRadius:8, cursor:'pointer', fontSize:16 }}>◀</button>
+              <span style={{ fontWeight:700, fontSize:17 }}>{MONTHS[calMonth]} {calYear}</span>
+              <button onClick={nextMo} style={{ background:'#252830', border:'none', color:'#e8eaed', padding:'8px 14px', borderRadius:8, cursor:'pointer', fontSize:16 }}>▶</button>
+            </div>
+
+            {/* Day headers */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(7, 1fr)', gap:3, marginBottom:3 }}>
+              {DAYS.map(d => <div key={d} style={{ textAlign:'center', fontSize:11, color:'#6b7080', padding:'4px 0', fontWeight:600 }}>{d}</div>)}
+            </div>
+
+            {/* Day grid */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(7, 1fr)', gap:3 }}>
+              {grid.map((day, i) => {
+                if (!day) return <div key={`blank-${i}`} />;
+                const dk    = `${calYear}-${pad(calMonth+1)}-${pad(day)}`;
+                const entry = data.entries[dk];
+                const dc    = entry?.type==='overtime'?'#f97316':entry?.type==='holiday'?'#a78bfa':'#22c55e';
+                return (
+                  <button key={dk} style={S.calDay(!!entry, entry?.type, dk===todayKey, selectedDay===dk)}
+                    onClick={() => setSelectedDay(selectedDay===dk ? null : dk)}>
+                    {day}
+                    {entry && <div style={S.dot(dc)} />}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Legend */}
+            <div style={{ display:'flex', gap:14, justifyContent:'center', marginTop:12, fontSize:11, color:'#6b7080' }}>
+              {[['#22c55e','Regular'],['#f97316','Overtime'],['#a78bfa','Holiday']].map(([c,l]) => (
+                <span key={l} style={{ display:'flex', alignItems:'center', gap:5 }}><div style={S.dot(c)} />{l}</span>
+              ))}
+            </div>
+
+            {/* Selected day panel */}
+            {selectedDay && (() => {
+              const entry  = data.entries[selectedDay];
+              const dObj   = parseKey(selectedDay);
+              const hrs    = (entry?.clockIn && entry?.clockOut) ? calcPaidHours(entry.clockIn, entry.clockOut, settings.unpaidBreakHrs) : 0;
+              const grs    = calcGross(hrs, entry?.shiftType, settings);
+              return (
+                <div style={{ ...S.card, marginTop:14 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                    <span style={{ fontWeight:700 }}>{formatDate(dObj)}</span>
+                    {entry && <span style={S.badge(entry.type==='overtime'?'#f97316':entry.type==='holiday'?'#a78bfa':'#22c55e')}>{entry.type||'regular'}</span>}
+                  </div>
+
+                  {entry ? (
+                    <>
+                      {entry.type !== 'holiday' && (
+                        <div style={{ fontSize:14, color:'#8b8f98', marginBottom:10 }}>
+                          <div>In: <strong style={{ color:'#e8eaed' }}>{entry.clockIn||'—'}</strong> → Out: <strong style={{ color:'#e8eaed' }}>{entry.clockOut||'—'}</strong> ({entry.shiftType||'—'})</div>
+                          {hrs > 0 && <div style={{ color:'#22c55e', marginTop:4 }}><strong>{hrs.toFixed(1)} hrs = £{grs.toFixed(2)}</strong></div>}
+                        </div>
+                      )}
+                      <div style={{ display:'flex', gap:8 }}>
+                        <button style={S.btn('#3a3d45')} onClick={() => setEditModal(selectedDay)}>✏️ Edit</button>
+                        <button style={S.btn('#ef444422', '#ef4444')}
+                          onClick={() => setConfirmModal({ msg:'Delete this entry?', action: () => deleteEntry(selectedDay) })}>
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ display:'flex', gap:8 }}>
+                      <button style={S.btn('#22c55e')}
+                        onClick={() => { updateEntryField(selectedDay, 'type', 'regular'); setEditModal(selectedDay); }}>
+                        + Add Entry
+                      </button>
+                      <button style={S.btn('#a78bfa')} onClick={() => setDayType(selectedDay, 'holiday')}>🌴 Holiday</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        );
+      };
+
+      // ── SETTINGS VIEW ──────────────────────────────────────────────────────
+      const renderSettings = () => (
+        <div style={S.sec}>
+          {[
+            { title:'Pay Rates', fields:[
+              { label:'Day Rate (£/hr)', key:'dayRate', type:'number', step:0.01 },
+              { label:'Night Rate (£/hr)', key:'nightRate', type:'number', step:0.01 },
+            ]},
+            { title:'Shift Setup', fields:[
+              { label:'Shift Length (hrs)', key:'shiftLengthHrs', type:'number', step:0.5 },
+              { label:'Unpaid Break (hrs)', key:'unpaidBreakHrs', type:'number', step:0.25 },
+            ]},
+            { title:'Pay Period', fields:[
+              { label:'Period Start Date', key:'payPeriodStart', type:'date' },
+              { label:'Length (weeks)', key:'payPeriodWeeks', type:'number', step:1 },
+            ]},
+          ].map(({ title, fields }) => (
+            <div key={title} style={{ marginBottom:22 }}>
+              <h3 style={{ fontSize:12, fontWeight:700, color:'#6b7080', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:12 }}>{title}</h3>
+              <div style={{ display:'flex', gap:12 }}>
+                {fields.map(f => (
+                  <div key={f.key} style={{ flex:1 }}>
+                    <label style={{ ...S.lbl, display:'block', marginBottom:5 }}>{f.label}</label>
+                    <input
+                      type={f.type} step={f.step}
+                      value={settings[f.key]}
+                      onChange={e => updateSetting(f.key, f.type==='number' ? parseFloat(e.target.value)||0 : e.target.value)}
+                      style={S.input}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Reminder */}
+          <div style={{ marginBottom:22 }}>
+            <h3 style={{ fontSize:12, fontWeight:700, color:'#6b7080', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:12 }}>Clock-Out Reminder</h3>
+            <div style={S.card}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <span style={{ fontSize:14, fontWeight:500 }}>Notifications</span>
+                <span style={S.badge(settings.notificationsEnabled?'#22c55e':'#4b5060')}>{settings.notificationsEnabled?'ON':'OFF'}</span>
+              </div>
+              {settings.notificationsEnabled ? (
+                <>
+                  <label style={{ ...S.lbl, display:'block', marginBottom:5 }}>Remind me at</label>
+                  <input type="time" value={settings.reminderTime||'18:00'} onChange={e => updateSetting('reminderTime', e.target.value)} style={{ ...S.input, marginBottom:10 }} />
+                  <button style={{ ...S.btn('#4b5060'), width:'100%' }} onClick={() => updateSetting('notificationsEnabled', false)}>Disable</button>
+                </>
+              ) : (
+                <button style={{ ...S.btn('#4a9eff'), width:'100%', padding:13 }} onClick={enableNotifications}>Enable Notifications</button>
+              )}
+            </div>
+          </div>
+
+          {/* Data */}
+          <div style={{ marginBottom:22 }}>
+            <h3 style={{ fontSize:12, fontWeight:700, color:'#6b7080', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:12 }}>Data</h3>
+            <button style={{ ...S.btn('#4a9eff'), width:'100%', padding:14, marginBottom:10 }} onClick={handleExport}>
+              📋 Export Data for Claude
+            </button>
+            <p style={{ fontSize:12, color:'#6b7080', marginBottom:18, lineHeight:1.5 }}>Copies all your clock records. Paste into Claude to verify your pay.</p>
+            <button style={{ ...S.btn('#ef444422','#ef4444'), width:'100%', padding:14 }}
+              onClick={() => setConfirmModal({ msg:'Delete ALL data? This cannot be undone.', action: () => { save({ entries:{}, settings:{...DEFAULT_SETTINGS} }); showToast('All data cleared'); }})}>
+              🗑️ Reset All Data
+            </button>
+          </div>
+
+          <p style={{ fontSize:11, color:'#2a2d35', textAlign:'center', paddingBottom:8 }}>Data stored on this device only</p>
+        </div>
+      );
+
+      // ── EDIT MODAL ─────────────────────────────────────────────────────────
+      const renderEditModal = () => {
+        if (!editModal) return null;
+        const e   = data.entries[editModal] || { type:'regular', shiftType: settings.currentRotation==='nights'?'night':'day', clockIn:'06:00', clockOut:'18:00' };
+        const hrs = calcPaidHours(e.clockIn, e.clockOut, settings.unpaidBreakHrs);
+        const grs = calcGross(hrs, e.shiftType, settings);
+        const upd = (field, val) => updateEntryField(editModal, field, val);
+        return (
+          <div style={S.overlay} onClick={ev => { if (ev.target===ev.currentTarget) setEditModal(null); }}>
+            <div style={S.sheet}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+                <h3 style={{ fontSize:16, fontWeight:700, margin:0 }}>{formatDate(parseKey(editModal))}</h3>
+                <button onClick={() => setEditModal(null)} style={{ background:'none', border:'none', color:'#6b7080', fontSize:26, cursor:'pointer', lineHeight:1 }}>×</button>
+              </div>
+
+              <div style={{ marginBottom:16 }}>
+                <div style={{ ...S.lbl, marginBottom:8 }}>Day Type</div>
+                <div style={{ display:'flex', gap:8 }}>
+                  {['regular','overtime','holiday'].map(t => (
+                    <button key={t} style={{ ...S.btn(e.type===t?(t==='overtime'?'#f97316':t==='holiday'?'#a78bfa':'#22c55e'):'#252830', e.type===t?'#fff':'#6b7080'), fontSize:12 }}
+                      onClick={() => upd('type', t)}>{t}</button>
+                  ))}
+                </div>
+              </div>
+
+              {e.type !== 'holiday' && (
+                <>
+                  <div style={{ marginBottom:16 }}>
+                    <div style={{ ...S.lbl, marginBottom:8 }}>Shift Type</div>
+                    <div style={{ display:'flex', gap:8 }}>
+                      {['night','day'].map(st => (
+                        <button key={st} style={{ ...S.btn(e.shiftType===st?(st==='night'?'#312e81':'#78350f'):'#252830', e.shiftType===st?(st==='night'?'#c4b5fd':'#fcd34d'):'#6b7080'), flex:1 }}
+                          onClick={() => upd('shiftType', st)}>{st==='night'?'🌙 Night':'☀️ Day'}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display:'flex', gap:12, marginBottom:16 }}>
+                    {[['clockIn','Clock In'],['clockOut','Clock Out']].map(([field, label]) => (
+                      <div key={field} style={{ flex:1 }}>
+                        <label style={{ ...S.lbl, display:'block', marginBottom:5 }}>{label}</label>
+                        <input type="time" value={e[field]||''} onChange={ev => upd(field, ev.target.value)} style={S.input} />
+                      </div>
+                    ))}
+                  </div>
+
+                  {hrs > 0 && (
+                    <div style={{ background:'#0d1117', borderRadius:8, padding:'10px 14px', marginBottom:16, fontSize:14 }}>
+                      <span style={{ color:'#6b7080' }}>Calculated: </span>
+                      <strong style={{ color:'#22c55e' }}>{hrs.toFixed(1)} hrs = £{grs.toFixed(2)}</strong>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <button style={{ ...S.btn('#4a9eff'), width:'100%', padding:14 }} onClick={() => setEditModal(null)}>Done</button>
+            </div>
+          </div>
+        );
+      };
+
+      // ── CONFIRM MODAL ──────────────────────────────────────────────────────
+      const renderConfirmModal = () => {
+        if (!confirmModal) return null;
+        return (
+          <div style={S.overlay} onClick={ev => { if (ev.target===ev.currentTarget) setConfirmModal(null); }}>
+            <div style={{ ...S.sheet, maxHeight:'none' }}>
+              <p style={{ fontSize:16, textAlign:'center', marginBottom:22, lineHeight:1.5 }}>{confirmModal.msg}</p>
+              <div style={{ display:'flex', gap:10 }}>
+                <button style={{ ...S.btn('#3a3d45'), flex:1, padding:14 }} onClick={() => setConfirmModal(null)}>Cancel</button>
+                <button style={{ ...S.btn('#ef4444'), flex:1, padding:14 }} onClick={() => { confirmModal.action(); setConfirmModal(null); }}>Confirm</button>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      // ── EXPORT MODAL ───────────────────────────────────────────────────────
+      const renderExportModal = () => {
+        if (!exportText) return null;
+        return (
+          <div style={S.overlay}>
+            <div style={S.sheet}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <h3 style={{ fontSize:15, fontWeight:700, margin:0 }}>Your Clock Data</h3>
+                <button onClick={() => setExportText(null)} style={{ background:'none', border:'none', color:'#6b7080', fontSize:26, cursor:'pointer', lineHeight:1 }}>×</button>
+              </div>
+              <p style={{ fontSize:12, color:'#6b7080', marginBottom:10 }}>Select all text below and copy, then paste into Claude:</p>
+              <textarea
+                readOnly value={exportText}
+                onFocus={ev => ev.target.select()}
+                style={{ ...S.input, height:200, fontSize:11, ...S.mono, resize:'none', lineHeight:1.5 }}
+              />
+              <button style={{ ...S.btn('#4a9eff'), width:'100%', padding:14, marginTop:12 }}
+                onClick={() => navigator.clipboard?.writeText(exportText).then(() => showToast('Copied ✓'))}>
+                Copy All
+              </button>
+            </div>
+          </div>
+        );
+      };
+
+      // ── RENDER ─────────────────────────────────────────────────────────────
+      return (
+        <div style={S.root}>
+
+          {/* Stats bar */}
+          <div style={S.bar}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+              <div>
+                <div style={S.lbl}>Current Rate</div>
+                <div style={{ ...S.mono, fontSize:16, fontWeight:700 }}>
+                  £{rate.toFixed(2)}
+                  <span style={{ fontSize:12, color:'#6b7080', fontWeight:400 }}>/hr — {settings.currentRotation}</span>
+                </div>
+              </div>
+              <div style={{ textAlign:'right' }}>
+                <div style={S.lbl}>Pay Period</div>
+                <div style={{ fontSize:12, fontWeight:600 }}>{getCurrentPayPeriod()}</div>
+              </div>
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              {[['Week', totals.wP],['Month', totals.mP],['Tax Year', totals.yP]].map(([label, val]) => (
+                <div key={label} style={S.statC}>
+                  <div style={S.lbl}>{label}</div>
+                  <div style={{ ...S.mono, fontSize:14, fontWeight:700, color:'#22c55e' }}>£{(val||0).toFixed(0)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Main scrollable area */}
+          <div style={S.scroll}>
+            {view==='today'    && renderToday()}
+            {view==='calendar' && renderCalendar()}
+            {view==='settings' && renderSettings()}
+          </div>
+
+          {/* Bottom nav */}
+          <nav style={S.nav}>
+            {[['today','⏱','Today'],['calendar','📅','Calendar'],['settings','⚙️','Settings']].map(([v, icon, label]) => (
+              <button key={v} style={S.navB(view===v)} onClick={() => setView(v)}>
+                <span style={{ fontSize:20 }}>{icon}</span>
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* Modals */}
+          {renderEditModal()}
+          {renderConfirmModal()}
+          {renderExportModal()}
+
+          {/* Toast */}
+          {toast && <div style={S.toast}>{toast}</div>}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<ClockTracker />);
+  </script>
+</body>
+</html>
