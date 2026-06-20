@@ -617,7 +617,7 @@ function onClick(ev){
     case'add-entry': patchEntry(k,'type','regular');EDIT=k;render();break;
     case'set-hol':   dayType(k,'holiday');break;
     case'conf-del':  CONFIRM={msg:'Delete this entry?',action:function(){delEntry(k);}};render();break;
-    case'conf-reset':CONFIRM={msg:'Delete ALL data? This cannot be undone.',action:function(){D={entries:{},settings:Object.assign({},DEF_S)};persist(D);CONFIRM=null;render();toast('All data cleared');}};render();break;
+    case'conf-reset':CONFIRM={msg:'Delete ALL data? This cannot be undone.',action:function(){try{localStorage.removeItem(SK);}catch(e){}D=load();CONFIRM=null;render();toast('All data cleared');}};render();break;
     case'cno':       CONFIRM=null;render();break;
     case'cyes':      if(CONFIRM){CONFIRM.action();}break;
     case'export':    doExport();break;
