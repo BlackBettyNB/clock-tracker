@@ -61,414 +61,551 @@
 <div id="toast-el"></div>
 <script>
 // ── Constants ──────────────────────────────────────────────────────────────────
-const SK = 'jack-clock-v1';
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const DAYS   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-const DEF_S  = {dayRate:15.13,nightRate:17.70,unpaidBreakHrs:.5,shiftLengthHrs:12,
-                currentRotation:'nights',payPeriodStart:'2026-04-24',payPeriodWeeks:4,
-                reminderTime:'18:00',notificationsEnabled:false};
+var SK = 'jack-clock-v1';
+var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+var DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+var DEF_S = {
+  dayRate:15.13, nightRate:17.70,
+  otDayRate:22.69, otNightRate:26.55,
+  unpaidBreakHrs:0.75, shiftLengthHrs:12,
+  currentRotation:'nights',
+  payPeriodStart:'2026-05-03',payPeriodWeeks:5,
+  reminderTime1:'05:55', reminderTime2:'17:55',
+  notificationsEnabled:false
+};
 
 // ── State ──────────────────────────────────────────────────────────────────────
-let D = load();
-let VIEW='today', CAL_M=new Date().getMonth(), CAL_Y=new Date().getFullYear();
-let SEL=null, EDIT=null, CONFIRM=null, EXPORT=null, TOAST_T=null, REM_T=null;
+var D = load();
+var VIEW='today', CAL_M=new Date().getMonth(), CAL_Y=new Date().getFullYear();
+var SEL=null, EDIT=null, CONFIRM=null, EXPORT=null, TOAST_T=null, REM_T1=null, REM_T2=null;
 
 // ── Storage ────────────────────────────────────────────────────────────────────
+var SEED={
+// Mar 2026 — Nights (Wed/Thu/Fri)
+'2026-03-03':{type:'overtime',shiftType:'night',clockIn:'17:55',clockOut:'05:02'},
+'2026-03-04':{type:'regular',shiftType:'night',clockIn:'17:57',clockOut:'05:58'},
+'2026-03-05':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'06:02'},
+'2026-03-06':{type:'holiday',shiftType:'night'},
+'2026-03-11':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'06:02'},
+'2026-03-12':{type:'regular',shiftType:'night',clockIn:'23:58',clockOut:'05:58'},
+'2026-03-13':{type:'regular',shiftType:'night',clockIn:'18:00',clockOut:'05:55'},
+// Mar — Days (Thu/Fri/Sat)
+'2026-03-17':{type:'overtime',shiftType:'day',clockIn:'05:58',clockOut:'17:57'},
+'2026-03-19':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:56'},
+'2026-03-20':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:56'},
+'2026-03-21':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:55'},
+'2026-03-25':{type:'overtime',shiftType:'day',clockIn:'05:58',clockOut:'11:52'},
+'2026-03-26':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'18:01'},
+'2026-03-27':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:55'},
+'2026-03-28':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:55'},
+// Apr — Days (Thu/Fri/Sat)
+'2026-04-02':{type:'regular',shiftType:'day',clockIn:'05:58',clockOut:'18:01'},
+'2026-04-03':{type:'regular',shiftType:'day',clockIn:'05:55',clockOut:'17:56'},
+'2026-04-04':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:55'},
+'2026-04-09':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'18:05'},
+'2026-04-10':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'18:01'},
+'2026-04-11':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:55'},
+// Apr — Nights (Wed/Thu/Fri)
+'2026-04-15':{type:'regular',shiftType:'night',clockIn:'17:56',clockOut:'05:56'},
+'2026-04-16':{type:'holiday',shiftType:'night'},
+'2026-04-17':{type:'holiday',shiftType:'night'},
+'2026-04-22':{type:'regular',shiftType:'night',clockIn:'17:59',clockOut:'05:55'},
+'2026-04-23':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'05:55'},
+'2026-04-24':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'05:55'},
+'2026-04-29':{type:'holiday',shiftType:'night'},
+'2026-04-30':{type:'holiday',shiftType:'night'},
+// May — Nights (Wed/Thu/Fri)
+'2026-05-01':{type:'regular',shiftType:'night',clockIn:'17:52',clockOut:'05:55'},
+'2026-05-06':{type:'regular',shiftType:'night',clockIn:'17:56',clockOut:'05:55'},
+'2026-05-07':{type:'regular',shiftType:'night',clockIn:'17:55',clockOut:'05:55'},
+'2026-05-08':{type:'regular',shiftType:'night',clockIn:'17:57',clockOut:'05:55'},
+// May — Days (Thu/Fri/Sat)
+'2026-05-13':{type:'overtime',shiftType:'day',clockIn:'05:52',clockOut:'12:42'},
+'2026-05-14':{type:'regular',shiftType:'day',clockIn:'05:55',clockOut:'17:57'},
+'2026-05-15':{type:'regular',shiftType:'day',clockIn:'05:55',clockOut:'18:04'},
+'2026-05-16':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:55'},
+'2026-05-21':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:58'},
+'2026-05-22':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'18:00'},
+'2026-05-23':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:55'},
+'2026-05-28':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:56'},
+'2026-05-29':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:55'},
+'2026-05-30':{type:'regular',shiftType:'day',clockIn:'05:58',clockOut:'17:55'},
+// Jun — Days (Thu/Fri/Sat)
+'2026-06-04':{type:'regular',shiftType:'day',clockIn:'05:58',clockOut:'17:56'},
+'2026-06-05':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'18:01'},
+'2026-06-06':{type:'holiday',shiftType:'day'},
+// Jun — Nights (Wed/Thu/Fri)
+'2026-06-10':{type:'holiday',shiftType:'night'},
+'2026-06-11':{type:'holiday',shiftType:'night'},
+'2026-06-12':{type:'holiday',shiftType:'night'},
+'2026-06-17':{type:'regular',shiftType:'night',clockIn:'23:53',clockOut:'05:55'},
+'2026-06-18':{type:'regular',shiftType:'night',clockIn:'17:54',clockOut:'06:02'}
+};
+
 function load(){
-  try{const r=localStorage.getItem(SK);if(r){const d=JSON.parse(r);d.settings={...DEF_S,...d.settings};return d;}}catch(e){}
-  return {entries:{},settings:{...DEF_S}};
+  try{var r=localStorage.getItem(SK);if(r){var d=JSON.parse(r);d.settings=Object.assign({},DEF_S,d.settings);return d;}}catch(e){}
+  return{entries:Object.assign({},SEED),settings:Object.assign({},DEF_S)};
 }
 function persist(d){try{localStorage.setItem(SK,JSON.stringify(d));}catch(e){}}
-function save(d,rerender=true){D=d;persist(d);if(rerender)render();}
-function setSetting(k,v){save({...D,settings:{...D.settings,[k]:v}});}
-function setEntry(key,entry){save({...D,entries:{...D.entries,[key]:entry}});}
+function save(d,doRender){D=d;persist(d);if(doRender!==false)render();}
+function setSetting(k,v){save(Object.assign({},D,{settings:Object.assign({},D.settings)}));D.settings[k]=v;persist(D);render();}
+function setEntry(key,entry){var e=Object.assign({},D.entries);e[key]=entry;save(Object.assign({},D,{entries:e}));}
 function patchEntry(key,field,val){
-  const base=D.entries[key]||{type:'regular',shiftType:D.settings.currentRotation==='nights'?'night':'day'};
-  D=({...D,entries:{...D.entries,[key]:{...base,[field]:val}}});persist(D);
+  var base=D.entries[key]||{type:'regular',shiftType:D.settings.currentRotation==='nights'?'night':'day'};
+  var e=Object.assign({},base);e[field]=val;
+  var ents=Object.assign({},D.entries);ents[key]=e;
+  D=Object.assign({},D,{entries:ents});persist(D);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-const pad   = n=>String(n).padStart(2,'0');
-const toKey = d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-const pKey  = k=>{const[y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d);};
-const fTime = d=>`${pad(d.getHours())}:${pad(d.getMinutes())}`;
-const fDate = d=>d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
-const esc   = s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function pad(n){return String(n).padStart(2,'0');}
+function toKey(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function pKey(k){var p=k.split('-').map(Number);return new Date(p[0],p[1]-1,p[2]);}
+function fTime(d){return pad(d.getHours())+':'+pad(d.getMinutes());}
+function fDate(d){return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 function grid(y,m){
-  const first=new Date(y,m,1);let sd=first.getDay()-1;if(sd<0)sd=6;
-  const days=new Date(y,m+1,0).getDate(),cells=Array(sd).fill(null);
-  for(let d=1;d<=days;d++)cells.push(d);return cells;
+  var first=new Date(y,m,1),sd=first.getDay()-1;if(sd<0)sd=6;
+  var days=new Date(y,m+1,0).getDate(),cells=[];
+  for(var i=0;i<sd;i++)cells.push(null);
+  for(var d=1;d<=days;d++)cells.push(d);return cells;
+}
+
+// ── Rate helper ────────────────────────────────────────────────────────────────
+function getRate(shiftType, isOvertime){
+  if(isOvertime){return shiftType==='night'?D.settings.otNightRate:D.settings.otDayRate;}
+  return shiftType==='night'?D.settings.nightRate:D.settings.dayRate;
+}
+function getCurrentRate(){
+  return D.settings.currentRotation==='nights'?D.settings.nightRate:D.settings.dayRate;
+}
+function getEntryRate(e){
+  if(!e)return getCurrentRate();
+  return getRate(e.shiftType, e.type==='overtime');
 }
 
 // ── Calculations ───────────────────────────────────────────────────────────────
 function paidHrs(ci,co){
   if(!ci||!co)return 0;
-  const[h1,m1]=ci.split(':').map(Number),[h2,m2]=co.split(':').map(Number);
-  let mins=(h2*60+m2)-(h1*60+m1);if(mins<0)mins+=1440;
+  var p1=ci.split(':').map(Number),p2=co.split(':').map(Number);
+  var mins=(p2[0]*60+p2[1])-(p1[0]*60+p1[1]);if(mins<0)mins+=1440;
   return Math.max(0,mins/60-D.settings.unpaidBreakHrs);
 }
-function gross(hrs,st){return hrs*(st==='night'?D.settings.nightRate:D.settings.dayRate);}
-function weekStart(d){const dt=new Date(d),day=dt.getDay();dt.setDate(dt.getDate()-(day===0?6:day-1));dt.setHours(0,0,0,0);return dt;}
-function taxYearStart(){const now=new Date(),y=now.getFullYear(),after=now.getMonth()>3||(now.getMonth()===3&&now.getDate()>=6);return new Date(after?y:y-1,3,6);}
+function gross(hrs,shiftType,isOvertime){return hrs*getRate(shiftType,isOvertime);}
+function weekStart(d){var dt=new Date(d),day=dt.getDay();dt.setDate(dt.getDate()-(day===0?6:day-1));dt.setHours(0,0,0,0);return dt;}
+function taxYearStart(){var now=new Date(),y=now.getFullYear(),after=now.getMonth()>3||(now.getMonth()===3&&now.getDate()>=6);return new Date(after?y:y-1,3,6);}
 function totals(){
-  let wP=0,mP=0,yP=0,wH=0,mH=0,yH=0;
-  const now=new Date(),ws=weekStart(now),ms=new Date(now.getFullYear(),now.getMonth(),1),ys=taxYearStart();
-  Object.entries(D.entries).forEach(([k,e])=>{
-    if(e.type==='holiday'||!e.clockIn||!e.clockOut)return;
-    const dt=pKey(k),h=paidHrs(e.clockIn,e.clockOut),g=gross(h,e.shiftType);
+  var wP=0,mP=0,yP=0,wH=0,mH=0,yH=0;
+  var now=new Date(),ws=weekStart(now),ms=new Date(now.getFullYear(),now.getMonth(),1),ys=taxYearStart();
+  var keys=Object.keys(D.entries);
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i],e=D.entries[k];
+    if(e.type==='holiday'||!e.clockIn||!e.clockOut)continue;
+    var dt=pKey(k),h=paidHrs(e.clockIn,e.clockOut),g=gross(h,e.shiftType,e.type==='overtime');
     if(dt>=ws){wP+=g;wH+=h;}if(dt>=ms){mP+=g;mH+=h;}if(dt>=ys){yP+=g;yH+=h;}
-  });
-  return{wP,mP,yP,wH,mH,yH};
+  }
+  return{wP:wP,mP:mP,yP:yP,wH:wH,mH:mH,yH:yH};
 }
 function payPeriod(){
   if(!D.settings.payPeriodStart)return'Not set';
-  const wms=D.settings.payPeriodWeeks*7*86400000;let ps=new Date(D.settings.payPeriodStart),now=new Date();
+  var wms=D.settings.payPeriodWeeks*7*86400000,ps=new Date(D.settings.payPeriodStart),now=new Date();
   while(ps.getTime()+wms<=now.getTime())ps=new Date(ps.getTime()+wms);
-  const pe=new Date(ps.getTime()+wms-86400000),f=d=>d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-  return`${f(ps)} – ${f(pe)}`;
+  var pe=new Date(ps.getTime()+wms-86400000);
+  var f=function(d){return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});};
+  return f(ps)+' – '+f(pe);
 }
 
 // ── Actions ────────────────────────────────────────────────────────────────────
 function clockIn(){
-  const now=new Date(),t=fTime(now),k=toKey(now);
-  const e={...(D.entries[k]||{}),type:D.entries[k]?.type||'regular',
-    shiftType:D.entries[k]?.shiftType||(D.settings.currentRotation==='nights'?'night':'day'),clockIn:t,clockOut:null};
-  setEntry(k,e);toast(`Clocked in at ${t}`);
+  var now=new Date(),t=fTime(now),k=toKey(now);
+  var existing=D.entries[k]||{};
+  var e=Object.assign({},existing,{
+    type:existing.type||'regular',
+    shiftType:existing.shiftType||(D.settings.currentRotation==='nights'?'night':'day'),
+    clockIn:t,clockOut:null
+  });
+  setEntry(k,e);toast('Clocked in at '+t);
 }
 function clockOut(){
-  const now=new Date(),t=fTime(now),k=toKey(now);
-  if(!D.entries[k]?.clockIn)return;
-  setEntry(k,{...D.entries[k],clockOut:t});toast(`Clocked out at ${t}`);
+  var now=new Date(),t=fTime(now),k=toKey(now);
+  if(!D.entries[k]||!D.entries[k].clockIn)return;
+  setEntry(k,Object.assign({},D.entries[k],{clockOut:t}));toast('Clocked out at '+t);
 }
 function dayType(key,type){
-  const base=D.entries[key]||{shiftType:D.settings.currentRotation==='nights'?'night':'day'};
-  const e={...base,type};if(type==='holiday'){delete e.clockIn;delete e.clockOut;}
+  var base=D.entries[key]||{shiftType:D.settings.currentRotation==='nights'?'night':'day'};
+  var e=Object.assign({},base,{type:type});
+  if(type==='holiday'){delete e.clockIn;delete e.clockOut;}
   setEntry(key,e);
   toast(type==='holiday'?'🌴 Marked as holiday':type==='overtime'?'Marked as overtime':'Set to regular');
 }
-function delEntry(key){const e={...D.entries};delete e[key];save({...D,entries:e});EDIT=null;SEL=null;toast('Entry deleted');}
+function delEntry(key){
+  var e=Object.assign({},D.entries);delete e[key];
+  EDIT=null;SEL=null;CONFIRM=null;
+  save(Object.assign({},D,{entries:e}));
+  toast('Entry deleted');
+}
 
 // ── Toast ──────────────────────────────────────────────────────────────────────
 function toast(msg){
-  const el=document.getElementById('toast-el');if(!el)return;
-  el.innerHTML=`<div class="toast">${esc(msg)}</div>`;
-  if(TOAST_T)clearTimeout(TOAST_T);TOAST_T=setTimeout(()=>{if(el)el.innerHTML='';},2500);
+  var el=document.getElementById('toast-el');if(!el)return;
+  el.innerHTML='<div class="toast">'+esc(msg)+'</div>';
+  if(TOAST_T)clearTimeout(TOAST_T);TOAST_T=setTimeout(function(){if(el)el.innerHTML='';},2500);
 }
 
 // ── Notifications ──────────────────────────────────────────────────────────────
 function schedRem(){
-  if(REM_T)clearTimeout(REM_T);
-  if(!D.settings.notificationsEnabled||!D.settings.reminderTime)return;
-  const[h,m]=D.settings.reminderTime.split(':').map(Number),tgt=new Date();
-  tgt.setHours(h,m,0,0);let delay=tgt-Date.now();if(delay<0)delay+=86400000;
-  REM_T=setTimeout(()=>{
-    if(Notification.permission!=='granted')return;
-    const fresh=load(),k=toKey(new Date()),e=fresh.entries[k];
-    if(e?.clockIn&&!e?.clockOut)new Notification('⏰ Clock Out Reminder',{body:`Clocked in at ${e.clockIn} — don't forget to clock out!`,tag:'clock-out'});
-  },delay);
+  if(REM_T1)clearTimeout(REM_T1);
+  if(REM_T2)clearTimeout(REM_T2);
+  if(!D.settings.notificationsEnabled)return;
+  function sched(timeStr,id){
+    if(!timeStr)return null;
+    var p=timeStr.split(':').map(Number),tgt=new Date();
+    tgt.setHours(p[0],p[1],0,0);var delay=tgt-Date.now();if(delay<0)delay+=86400000;
+    return setTimeout(function(){
+      if(Notification.permission!=='granted')return;
+      var fresh=load(),k=toKey(new Date()),e=fresh.entries[k];
+      if(e&&e.clockIn&&!e.clockOut)new Notification('⏰ Clock Out Reminder',{body:'Clocked in at '+e.clockIn+' — don\'t forget to clock out!',tag:'clock-out-'+id});
+    },delay);
+  }
+  REM_T1=sched(D.settings.reminderTime1,'1');
+  REM_T2=sched(D.settings.reminderTime2,'2');
 }
-async function enableNotif(){
+function enableNotif(){
   if(!('Notification'in window)){toast('Notifications not supported');return;}
-  const p=await Notification.requestPermission();
-  if(p==='granted'){setSetting('notificationsEnabled',true);toast('Notifications enabled ✓');schedRem();}
-  else toast('Permission denied');
+  Notification.requestPermission().then(function(p){
+    if(p==='granted'){setSetting('notificationsEnabled',true);toast('Notifications enabled ✓');schedRem();}
+    else toast('Permission denied');
+  });
 }
 
 // ── Export ─────────────────────────────────────────────────────────────────────
 function genExport(){
-  const{wP,mP,yP,wH,mH,yH}=totals(),now=new Date();
-  let t=`CLOCK TRACKER — DATA EXPORT\nGenerated: ${fDate(now)} ${fTime(now)}\n`;
-  t+=`Day Rate: £${D.settings.dayRate}/hr  |  Night Rate: £${D.settings.nightRate}/hr\n`;
-  t+=`Unpaid Break: ${D.settings.unpaidBreakHrs*60} min  |  Shift: ${D.settings.shiftLengthHrs} hrs\n`;
-  t+=`Rotation: ${D.settings.currentRotation}  |  Pay Period: ${payPeriod()}\n\n`;
-  t+=`DATE         TYPE        SHIFT   IN     OUT    HRS    GROSS\n${'─'.repeat(60)}\n`;
-  Object.entries(D.entries).sort(([a],[b])=>a.localeCompare(b)).forEach(([k,e])=>{
-    const h=(!e.clockIn||!e.clockOut||e.type==='holiday')?0:paidHrs(e.clockIn,e.clockOut);
-    t+=`${k}  ${(e.type||'regular').padEnd(11)}${(e.shiftType||'-').padEnd(7)}${(e.clockIn||'-').padEnd(7)}${(e.clockOut||'-').padEnd(7)}${h.toFixed(1).padEnd(7)}£${gross(h,e.shiftType).toFixed(2)}\n`;
-  });
-  t+=`\n${'─'.repeat(60)}\nWeek:      ${wH.toFixed(1)} hrs  =  £${wP.toFixed(2)}\nMonth:     ${mH.toFixed(1)} hrs  =  £${mP.toFixed(2)}\nTax Year:  ${yH.toFixed(1)} hrs  =  £${yP.toFixed(2)}\n`;
+  var t_=totals(),now=new Date();
+  var t='CLOCK TRACKER — DATA EXPORT\nGenerated: '+fDate(now)+' '+fTime(now)+'\n';
+  t+='Day Rate: £'+D.settings.dayRate+'/hr  |  Night Rate: £'+D.settings.nightRate+'/hr\n';
+  t+='OT Day: £'+D.settings.otDayRate+'/hr  |  OT Night: £'+D.settings.otNightRate+'/hr\n';
+  t+='Unpaid Break: '+(D.settings.unpaidBreakHrs*60)+' min  |  Shift: '+D.settings.shiftLengthHrs+' hrs\n';
+  t+='Rotation: '+D.settings.currentRotation+'  |  Pay Period: '+payPeriod()+'\n\n';
+  t+='DATE         TYPE        SHIFT   IN     OUT    HRS    RATE     GROSS\n';
+  t+=Array(68).join('─')+'\n';
+  var sorted=Object.keys(D.entries).sort();
+  for(var i=0;i<sorted.length;i++){
+    var k=sorted[i],e=D.entries[k];
+    var isOT=e.type==='overtime';
+    var h=(!e.clockIn||!e.clockOut||e.type==='holiday')?0:paidHrs(e.clockIn,e.clockOut);
+    var r=getRate(e.shiftType,isOT);
+    var g=h*r;
+    t+=k+'  '+(e.type||'regular').padEnd(11)+(e.shiftType||'-').padEnd(7)+(e.clockIn||'-').padEnd(7)+(e.clockOut||'-').padEnd(7)+h.toFixed(1).padEnd(7)+'£'+r.toFixed(2).padEnd(8)+'£'+g.toFixed(2)+'\n';
+  }
+  t+='\n'+Array(68).join('─')+'\n';
+  t+='Week:      '+t_.wH.toFixed(1)+' hrs  =  £'+t_.wP.toFixed(2)+'\n';
+  t+='Month:     '+t_.mH.toFixed(1)+' hrs  =  £'+t_.mP.toFixed(2)+'\n';
+  t+='Tax Year:  '+t_.yH.toFixed(1)+' hrs  =  £'+t_.yP.toFixed(2)+'\n';
   return t;
 }
 function doExport(){
-  const text=genExport();
-  if(navigator.share){navigator.share({title:'Clock Data',text}).catch(()=>{EXPORT=text;render();});}
-  else if(navigator.clipboard){navigator.clipboard.writeText(text).then(()=>toast('Copied ✓')).catch(()=>{EXPORT=text;render();});}
+  var text=genExport();
+  if(navigator.share){navigator.share({title:'Clock Data',text:text}).catch(function(){EXPORT=text;render();});}
+  else if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){toast('Copied ✓');}).catch(function(){EXPORT=text;render();});}
   else{EXPORT=text;render();}
 }
 
 // ── Badge / helpers ────────────────────────────────────────────────────────────
-const typeBg=t=>t==='overtime'?'#f97316':t==='holiday'?'#a78bfa':'#22c55e';
-const badge=t=>`<span class="badge" style="background:${typeBg(t)}">${esc(t||'regular')}</span>`;
+function typeBg(t){return t==='overtime'?'#f97316':t==='holiday'?'#a78bfa':'#22c55e';}
+function badge(t){return'<span class="badge" style="background:'+typeBg(t)+'">'+esc(t||'regular')+'</span>';}
 
 // ── Stats Bar ──────────────────────────────────────────────────────────────────
 function htmlStats(){
-  const t=totals(),rate=D.settings.currentRotation==='nights'?D.settings.nightRate:D.settings.dayRate;
-  return`<div class="stats-bar">
-    <div class="stats-row">
-      <div><div class="lbl">Current Rate</div>
-        <div class="mono" style="font-size:16px;font-weight:700">£${rate.toFixed(2)}<span style="font-size:12px;color:#6b7080;font-weight:400">/hr — ${esc(D.settings.currentRotation)}</span></div></div>
-      <div style="text-align:right"><div class="lbl">Pay Period</div>
-        <div style="font-size:12px;font-weight:600">${esc(payPeriod())}</div></div>
-    </div>
-    <div class="stat-cards">${[['Week',t.wP],['Month',t.mP],['Tax Year',t.yP]].map(([l,v])=>
-      `<div class="stat-card"><div class="stat-lbl">${l}</div><div class="stat-val mono">£${(v||0).toFixed(0)}</div></div>`).join('')}</div>
-  </div>`;
+  var t=totals(),rate=getCurrentRate();
+  return'<div class="stats-bar">'+
+    '<div class="stats-row">'+
+      '<div><div class="lbl">Current Rate</div>'+
+        '<div class="mono" style="font-size:16px;font-weight:700">£'+rate.toFixed(2)+'<span style="font-size:12px;color:#6b7080;font-weight:400">/hr — '+esc(D.settings.currentRotation)+'</span></div></div>'+
+      '<div style="text-align:right"><div class="lbl">Pay Period</div>'+
+        '<div style="font-size:12px;font-weight:600">'+esc(payPeriod())+'</div></div>'+
+    '</div>'+
+    '<div class="stat-cards">'+
+      [['Week',t.wP],['Month',t.mP],['Tax Year',t.yP]].map(function(x){
+        return'<div class="stat-card"><div class="stat-lbl">'+x[0]+'</div><div class="stat-val mono">£'+(x[1]||0).toFixed(0)+'</div></div>';
+      }).join('')+
+    '</div>'+
+  '</div>';
 }
 
 // ── Today View ─────────────────────────────────────────────────────────────────
 function htmlToday(){
-  const now=new Date(),k=toKey(now),e=D.entries[k]||null,clkedIn=!!(e?.clockIn&&!e?.clockOut);
-  let elapsed='';
-  if(clkedIn&&e?.clockIn){
-    const[h,m]=e.clockIn.split(':').map(Number),sm=h*60+m,nm=now.getHours()*60+now.getMinutes();
-    let diff=nm-sm;if(diff<0)diff+=1440;
-    const elH=Math.floor(diff/60),elM=diff%60,rem=D.settings.shiftLengthHrs*60-diff;
-    const rH=Math.floor(Math.max(0,rem)/60),rM=Math.floor(Math.max(0,rem)%60);
-    const rs=rem>0?`${rH}h ${pad(rM)}m`:'Done ✓',rc=rem<=0?'#22c55e':'#f59e0b';
-    elapsed=`<div class="card" style="display:flex;justify-content:space-between;margin-bottom:12px">
-      <div><div class="lbl">Elapsed</div><div class="mono" style="font-size:22px;font-weight:700" id="el-val">${elH}h ${pad(elM)}m</div></div>
-      <div style="text-align:right"><div class="lbl">Remaining</div><div class="mono" style="font-size:22px;font-weight:700;color:${rc}" id="rem-val">${esc(rs)}</div></div>
-    </div>`;
+  var now=new Date(),k=toKey(now),e=D.entries[k]||null,clkedIn=!!(e&&e.clockIn&&!e.clockOut);
+  var isOT=e&&e.type==='overtime';
+  var activeRate=e?getEntryRate(e):getCurrentRate();
+  var elapsed='';
+  if(clkedIn&&e&&e.clockIn){
+    var cp=e.clockIn.split(':').map(Number),sm=cp[0]*60+cp[1],nm=now.getHours()*60+now.getMinutes();
+    var diff=nm-sm;if(diff<0)diff+=1440;
+    var elH=Math.floor(diff/60),elM=diff%60,rem=D.settings.shiftLengthHrs*60-diff;
+    var rH=Math.floor(Math.max(0,rem)/60),rM=Math.floor(Math.max(0,rem)%60);
+    var rs=rem>0?rH+'h '+pad(rM)+'m':'Done ✓',rc=rem<=0?'#22c55e':'#f59e0b';
+    elapsed='<div class="card" style="display:flex;justify-content:space-between;margin-bottom:12px">'+
+      '<div><div class="lbl">Elapsed</div><div class="mono" style="font-size:22px;font-weight:700" id="el-val">'+elH+'h '+pad(elM)+'m</div></div>'+
+      '<div style="text-align:right"><div class="lbl">Remaining</div><div class="mono" style="font-size:22px;font-weight:700;color:'+rc+'" id="rem-val">'+esc(rs)+'</div></div>'+
+    '</div>';
   }
-  let entryCard='';
+  var entryCard='';
   if(e){
-    let payLine='';
-    if(e.clockIn&&e.clockOut){const h=paidHrs(e.clockIn,e.clockOut);payLine=`<div style="margin-top:8px" class="text-muted">Paid: <strong class="text-green">${h.toFixed(1)} hrs = £${gross(h,e.shiftType).toFixed(2)}</strong></div>`;}
-    entryCard=`<div class="card" style="margin-bottom:12px">
-      <div class="row-between" style="margin-bottom:8px"><span style="font-weight:600;font-size:15px">Today's shift</span>${badge(e.type||'regular')}</div>
-      <div class="text-muted" style="display:flex;gap:14px;flex-wrap:wrap">
-        <span>In: <strong style="color:#e8eaed">${esc(e.clockIn||'—')}</strong></span>
-        <span>Out: <strong style="color:#e8eaed">${esc(e.clockOut||'—')}</strong></span>
-        <span>Shift: <strong style="color:#e8eaed">${esc(e.shiftType||'—')}</strong></span>
-      </div>${payLine}</div>`;
+    var payLine='';
+    if(e.clockIn&&e.clockOut){
+      var h=paidHrs(e.clockIn,e.clockOut),g=gross(h,e.shiftType,isOT);
+      payLine='<div style="margin-top:8px" class="text-muted">Paid: <strong class="text-green">'+h.toFixed(1)+' hrs × £'+getEntryRate(e).toFixed(2)+' = £'+g.toFixed(2)+'</strong></div>';
+    }
+    entryCard='<div class="card" style="margin-bottom:12px">'+
+      '<div class="row-between" style="margin-bottom:8px"><span style="font-weight:600;font-size:15px">Today\'s shift</span>'+badge(e.type||'regular')+'</div>'+
+      '<div class="text-muted" style="display:flex;gap:14px;flex-wrap:wrap">'+
+        '<span>In: <strong style="color:#e8eaed">'+esc(e.clockIn||'—')+'</strong></span>'+
+        '<span>Out: <strong style="color:#e8eaed">'+esc(e.clockOut||'—')+'</strong></span>'+
+        '<span>Shift: <strong style="color:#e8eaed">'+esc(e.shiftType||'—')+'</strong></span>'+
+        (isOT?'<span>Rate: <strong style="color:#f97316">OT £'+getEntryRate(e).toFixed(2)+'</strong></span>':'')+
+      '</div>'+payLine+'</div>';
   }
-  const tp=e?.type||'',otBg=tp==='overtime'?'#f97316':'#252830',holBg=tp==='holiday'?'#a78bfa':'#252830';
-  const nBg=D.settings.currentRotation==='nights'?'#312e81':'#252830',nFg=D.settings.currentRotation==='nights'?'#c4b5fd':'#6b7080';
-  const dBg=D.settings.currentRotation==='days'?'#78350f':'#252830',dFg=D.settings.currentRotation==='days'?'#fcd34d':'#6b7080';
-  return`<div class="section">
-    <div style="text-align:center;margin-bottom:22px">
-      <div class="mono" id="live-clock" style="font-size:54px;font-weight:200;letter-spacing:-2px;line-height:1">${pad(now.getHours())}:${pad(now.getMinutes())}<span style="font-size:22px;color:#6b7080">:${pad(now.getSeconds())}</span></div>
-      <div style="font-size:14px;color:#6b7080;margin-top:6px">${fDate(now)}</div>
-    </div>
-    <button class="clock-btn" data-a="${clkedIn?'cout':'cin'}" style="background:${clkedIn?'#f59e0b':'#22c55e'};color:${clkedIn?'#1a1d23':'#fff'}">${clkedIn?'⬛  CLOCK OUT':'▶  CLOCK IN'}</button>
-    ${elapsed}${entryCard}
-    <div class="row" style="margin-bottom:12px">
-      <button class="btn" style="background:${otBg};color:#fff;flex:1" data-a="tog-ot">
-        ${tp==='overtime'?'✓ Overtime':'+ Overtime'}</button>
-      <button class="btn" style="background:${holBg};color:#fff;flex:1" data-a="tog-hol">
-        ${tp==='holiday'?'✓ Holiday':'🌴 Holiday'}</button>
-    </div>
-    <div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0">
-      <span style="font-size:14px;font-weight:500">Rotation</span>
-      <div class="row">
-        <button class="btn" style="background:${nBg};color:${nFg};padding:7px 14px;font-size:13px" data-a="set-nights">🌙 Nights</button>
-        <button class="btn" style="background:${dBg};color:${dFg};padding:7px 14px;font-size:13px" data-a="set-days">☀️ Days</button>
-      </div>
-    </div>
-  </div>`;
+  var tp=e?e.type||'':'',otBg=tp==='overtime'?'#f97316':'#252830',holBg=tp==='holiday'?'#a78bfa':'#252830';
+  var nBg=D.settings.currentRotation==='nights'?'#312e81':'#252830',nFg=D.settings.currentRotation==='nights'?'#c4b5fd':'#6b7080';
+  var dBg=D.settings.currentRotation==='days'?'#78350f':'#252830',dFg=D.settings.currentRotation==='days'?'#fcd34d':'#6b7080';
+  return'<div class="section">'+
+    '<div style="text-align:center;margin-bottom:22px">'+
+      '<div class="mono" id="live-clock" style="font-size:54px;font-weight:200;letter-spacing:-2px;line-height:1">'+pad(now.getHours())+':'+pad(now.getMinutes())+'<span style="font-size:22px;color:#6b7080">:'+pad(now.getSeconds())+'</span></div>'+
+      '<div style="font-size:14px;color:#6b7080;margin-top:6px">'+fDate(now)+'</div>'+
+    '</div>'+
+    '<button class="clock-btn" data-a="'+(clkedIn?'cout':'cin')+'" style="background:'+(clkedIn?'#f59e0b':'#22c55e')+';color:'+(clkedIn?'#1a1d23':'#fff')+'">'+(clkedIn?'⬛  CLOCK OUT':'▶  CLOCK IN')+'</button>'+
+    elapsed+entryCard+
+    '<div class="row" style="margin-bottom:12px">'+
+      '<button class="btn" style="background:'+otBg+';color:#fff;flex:1" data-a="tog-ot">'+(tp==='overtime'?'✓ Overtime':'+ Overtime')+'</button>'+
+      '<button class="btn" style="background:'+holBg+';color:#fff;flex:1" data-a="tog-hol">'+(tp==='holiday'?'✓ Holiday':'🌴 Holiday')+'</button>'+
+    '</div>'+
+    '<div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0">'+
+      '<span style="font-size:14px;font-weight:500">Rotation</span>'+
+      '<div class="row">'+
+        '<button class="btn" style="background:'+nBg+';color:'+nFg+';padding:7px 14px;font-size:13px" data-a="set-nights">🌙 Nights</button>'+
+        '<button class="btn" style="background:'+dBg+';color:'+dFg+';padding:7px 14px;font-size:13px" data-a="set-days">☀️ Days</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
 }
 
 // ── Calendar View ──────────────────────────────────────────────────────────────
 function htmlCal(){
-  const tok=toKey(new Date());
-  const cells=grid(CAL_Y,CAL_M).map((day,i)=>{
+  var tok=toKey(new Date()),g_=grid(CAL_Y,CAL_M);
+  var cells=g_.map(function(day,i){
     if(!day)return'<div></div>';
-    const dk=`${CAL_Y}-${pad(CAL_M+1)}-${pad(day)}`,e=D.entries[dk];
-    const cls=['cal-day'];
+    var dk=CAL_Y+'-'+pad(CAL_M+1)+'-'+pad(day),e=D.entries[dk];
+    var cls=['cal-day'];
     if(e)cls.push('has-entry',e.type||'regular');
     if(dk===tok)cls.push('is-today');
     if(dk===SEL)cls.push('sel');
-    const dc=e?.type==='overtime'?'#f97316':e?.type==='holiday'?'#a78bfa':'#22c55e';
-    return`<button class="${cls.join(' ')}" data-a="csel" data-k="${dk}">${day}${e?`<div class="cal-dot" style="background:${dc}"></div>`:''}</button>`;
+    var dc=e?(e.type==='overtime'?'#f97316':e.type==='holiday'?'#a78bfa':'#22c55e'):'';
+    return'<button class="'+cls.join(' ')+'" data-a="csel" data-k="'+dk+'">'+day+(e?'<div class="cal-dot" style="background:'+dc+'"></div>':'')+'</button>';
   }).join('');
 
-  let panel='';
+  var panel='';
   if(SEL){
-    const e=D.entries[SEL],dO=pKey(SEL);
-    let detail='';
+    var e=D.entries[SEL],dO=pKey(SEL);
+    var detail='';
     if(e){
-      const h=(e.clockIn&&e.clockOut)?paidHrs(e.clockIn,e.clockOut):0;
-      const pl=h>0?`<div class="text-green" style="margin-top:4px"><strong>${h.toFixed(1)} hrs = £${gross(h,e.shiftType).toFixed(2)}</strong></div>`:'';
-      detail=`<div class="row-between" style="margin-bottom:10px"><span style="font-weight:700">${fDate(dO)}</span>${badge(e.type||'regular')}</div>
-        ${e.type!=='holiday'?`<div class="text-muted" style="margin-bottom:10px">In: <strong style="color:#e8eaed">${esc(e.clockIn||'—')}</strong> → Out: <strong style="color:#e8eaed">${esc(e.clockOut||'—')}</strong> (${esc(e.shiftType||'—')})${pl}</div>`:''}
-        <div class="row">
-          <button class="btn" style="background:#3a3d45;color:#fff;flex:1" data-a="edit" data-k="${SEL}">✏️ Edit</button>
-          <button class="btn" style="background:#ef444422;color:#ef4444;flex:1" data-a="conf-del" data-k="${SEL}">🗑️ Delete</button>
-        </div>`;
+      var isOT=e.type==='overtime';
+      var h=(e.clockIn&&e.clockOut)?paidHrs(e.clockIn,e.clockOut):0;
+      var g=gross(h,e.shiftType,isOT);
+      var r=getEntryRate(e);
+      var pl=h>0?'<div class="text-green" style="margin-top:4px"><strong>'+h.toFixed(1)+' hrs × £'+r.toFixed(2)+' = £'+g.toFixed(2)+'</strong></div>':'';
+      detail='<div class="row-between" style="margin-bottom:10px"><span style="font-weight:700">'+fDate(dO)+'</span>'+badge(e.type||'regular')+'</div>'+
+        (e.type!=='holiday'?'<div class="text-muted" style="margin-bottom:10px">In: <strong style="color:#e8eaed">'+esc(e.clockIn||'—')+'</strong> → Out: <strong style="color:#e8eaed">'+esc(e.clockOut||'—')+'</strong> ('+esc(e.shiftType||'—')+(isOT?' OT':'')+')'+pl+'</div>':'')+
+        '<div class="row">'+
+          '<button class="btn" style="background:#3a3d45;color:#fff;flex:1" data-a="edit" data-k="'+SEL+'">✏️ Edit</button>'+
+          '<button class="btn" style="background:#ef444422;color:#ef4444;flex:1" data-a="conf-del" data-k="'+SEL+'">🗑️ Delete</button>'+
+        '</div>';
     }else{
-      detail=`<div style="font-weight:700;margin-bottom:12px">${fDate(dO)}</div>
-        <div class="row">
-          <button class="btn" style="background:#22c55e;color:#fff;flex:1" data-a="add-entry" data-k="${SEL}">+ Add Entry</button>
-          <button class="btn" style="background:#a78bfa;color:#fff;flex:1" data-a="set-hol" data-k="${SEL}">🌴 Holiday</button>
-        </div>`;
+      detail='<div style="font-weight:700;margin-bottom:12px">'+fDate(dO)+'</div>'+
+        '<div class="row">'+
+          '<button class="btn" style="background:#22c55e;color:#fff;flex:1" data-a="add-entry" data-k="'+SEL+'">+ Add Entry</button>'+
+          '<button class="btn" style="background:#a78bfa;color:#fff;flex:1" data-a="set-hol" data-k="'+SEL+'">🌴 Holiday</button>'+
+        '</div>';
     }
-    panel=`<div class="card" style="margin-top:14px">${detail}</div>`;
+    panel='<div class="card" style="margin-top:14px">'+detail+'</div>';
   }
 
-  return`<div class="section">
-    <div class="row-between" style="margin-bottom:16px">
-      <button class="btn" style="background:#252830;color:#e8eaed;padding:8px 14px" data-a="cprev">◀</button>
-      <span style="font-weight:700;font-size:17px">${MONTHS[CAL_M]} ${CAL_Y}</span>
-      <button class="btn" style="background:#252830;color:#e8eaed;padding:8px 14px" data-a="cnext">▶</button>
-    </div>
-    <div class="cal-grid" style="margin-bottom:3px">${DAYS.map(d=>`<div class="lbl" style="text-align:center;padding:4px 0;font-weight:600">${d}</div>`).join('')}</div>
-    <div class="cal-grid">${cells}</div>
-    <div style="display:flex;gap:14px;justify-content:center;margin-top:12px;font-size:11px;color:#6b7080">
-      ${[['#22c55e','Regular'],['#f97316','Overtime'],['#a78bfa','Holiday']].map(([c,l])=>`<span style="display:flex;align-items:center;gap:5px"><div class="cal-dot" style="background:${c}"></div>${l}</span>`).join('')}
-    </div>${panel}
-  </div>`;
+  return'<div class="section">'+
+    '<div class="row-between" style="margin-bottom:16px">'+
+      '<button class="btn" style="background:#252830;color:#e8eaed;padding:8px 14px" data-a="cprev">◀</button>'+
+      '<span style="font-weight:700;font-size:17px">'+MONTHS[CAL_M]+' '+CAL_Y+'</span>'+
+      '<button class="btn" style="background:#252830;color:#e8eaed;padding:8px 14px" data-a="cnext">▶</button>'+
+    '</div>'+
+    '<div class="cal-grid" style="margin-bottom:3px">'+DAYS.map(function(d){return'<div class="lbl" style="text-align:center;padding:4px 0;font-weight:600">'+d+'</div>';}).join('')+'</div>'+
+    '<div class="cal-grid">'+cells+'</div>'+
+    '<div style="display:flex;gap:14px;justify-content:center;margin-top:12px;font-size:11px;color:#6b7080">'+
+      [['#22c55e','Regular'],['#f97316','Overtime'],['#a78bfa','Holiday']].map(function(x){return'<span style="display:flex;align-items:center;gap:5px"><div class="cal-dot" style="background:'+x[0]+'"></div>'+x[1]+'</span>';}).join('')+
+    '</div>'+panel+
+  '</div>';
 }
 
 // ── Settings View ──────────────────────────────────────────────────────────────
 function htmlSettings(){
-  const s=D.settings;
-  const nb=s.notificationsEnabled?`<span class="badge" style="background:#22c55e">ON</span>`:`<span class="badge" style="background:#4b5060">OFF</span>`;
-  const nContent=s.notificationsEnabled
-    ?`<div class="lbl" style="margin-bottom:5px">Remind me at</div>
-      <input class="input" type="time" value="${esc(s.reminderTime||'18:00')}" data-s="reminderTime" data-t="str" style="margin-bottom:10px" />
-      <button class="btn" style="background:#4b5060;color:#fff;width:100%" data-a="dis-notif">Disable</button>`
-    :`<button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:13px" data-a="en-notif">Enable Notifications</button>`;
+  var s=D.settings;
+  var nb=s.notificationsEnabled?'<span class="badge" style="background:#22c55e">ON</span>':'<span class="badge" style="background:#4b5060">OFF</span>';
+  var nContent=s.notificationsEnabled
+    ?'<div class="row" style="margin-bottom:10px">'+
+      '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Reminder 1</div><input class="input" type="time" value="'+esc(s.reminderTime1||'05:55')+'" data-s="reminderTime1" data-t="str" /></div>'+
+      '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Reminder 2</div><input class="input" type="time" value="'+esc(s.reminderTime2||'17:55')+'" data-s="reminderTime2" data-t="str" /></div>'+
+    '</div>'+
+    '<button class="btn" style="background:#4b5060;color:#fff;width:100%" data-a="dis-notif">Disable</button>'
+    :'<button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:13px" data-a="en-notif">Enable Notifications</button>';
 
-  return`<div class="section">
-    <div style="margin-bottom:22px"><div class="sec-title">Pay Rates</div>
-      <div class="row">
-        <div style="flex:1"><div class="lbl" style="margin-bottom:5px">Day Rate (£/hr)</div><input class="input" type="number" step="0.01" value="${s.dayRate}" data-s="dayRate" data-t="flt" /></div>
-        <div style="flex:1"><div class="lbl" style="margin-bottom:5px">Night Rate (£/hr)</div><input class="input" type="number" step="0.01" value="${s.nightRate}" data-s="nightRate" data-t="flt" /></div>
-      </div></div>
-    <div style="margin-bottom:22px"><div class="sec-title">Shift Setup</div>
-      <div class="row">
-        <div style="flex:1"><div class="lbl" style="margin-bottom:5px">Shift Length (hrs)</div><input class="input" type="number" step="0.5" value="${s.shiftLengthHrs}" data-s="shiftLengthHrs" data-t="flt" /></div>
-        <div style="flex:1"><div class="lbl" style="margin-bottom:5px">Unpaid Break (hrs)</div><input class="input" type="number" step="0.25" value="${s.unpaidBreakHrs}" data-s="unpaidBreakHrs" data-t="flt" /></div>
-      </div></div>
-    <div style="margin-bottom:22px"><div class="sec-title">Pay Period</div>
-      <div class="row">
-        <div style="flex:1"><div class="lbl" style="margin-bottom:5px">Start Date</div><input class="input" type="date" value="${esc(s.payPeriodStart)}" data-s="payPeriodStart" data-t="str" /></div>
-        <div style="flex:1"><div class="lbl" style="margin-bottom:5px">Length (weeks)</div><input class="input" type="number" step="1" value="${s.payPeriodWeeks}" data-s="payPeriodWeeks" data-t="int" /></div>
-      </div></div>
-    <div style="margin-bottom:22px"><div class="sec-title">Clock-Out Reminder</div>
-      <div class="card"><div class="row-between" style="margin-bottom:12px"><span style="font-size:14px;font-weight:500">Notifications</span>${nb}</div>${nContent}</div></div>
-    <div style="margin-bottom:22px"><div class="sec-title">Data</div>
-      <button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:14px;margin-bottom:10px" data-a="export">📋 Export Data for Claude</button>
-      <p style="font-size:12px;color:#6b7080;margin-bottom:18px;line-height:1.5">Exports all your clock records — paste into Claude to verify your pay.</p>
-      <button class="btn" style="background:#ef444422;color:#ef4444;width:100%;padding:14px" data-a="conf-reset">🗑️ Reset All Data</button>
-    </div>
-    <p style="font-size:11px;color:#2a2d35;text-align:center;padding-bottom:8px">Data stored on this device only</p>
-  </div>`;
+  return'<div class="section">'+
+    '<div style="margin-bottom:22px"><div class="sec-title">Pay Rates</div>'+
+      '<div class="row" style="margin-bottom:10px">'+
+        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Day Rate (£/hr)</div><input class="input" type="number" step="0.01" value="'+s.dayRate+'" data-s="dayRate" data-t="flt" /></div>'+
+        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Night Rate (£/hr)</div><input class="input" type="number" step="0.01" value="'+s.nightRate+'" data-s="nightRate" data-t="flt" /></div>'+
+      '</div>'+
+      '<div class="row">'+
+        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">OT Day (£/hr)</div><input class="input" type="number" step="0.01" value="'+s.otDayRate+'" data-s="otDayRate" data-t="flt" /></div>'+
+        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">OT Night (£/hr)</div><input class="input" type="number" step="0.01" value="'+s.otNightRate+'" data-s="otNightRate" data-t="flt" /></div>'+
+      '</div>'+
+    '</div>'+
+    '<div style="margin-bottom:22px"><div class="sec-title">Shift Setup</div>'+
+      '<div class="row">'+
+        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Shift Length (hrs)</div><input class="input" type="number" step="0.5" value="'+s.shiftLengthHrs+'" data-s="shiftLengthHrs" data-t="flt" /></div>'+
+        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Unpaid Break (hrs)</div><input class="input" type="number" step="0.25" value="'+s.unpaidBreakHrs+'" data-s="unpaidBreakHrs" data-t="flt" /></div>'+
+      '</div>'+
+    '</div>'+
+    '<div style="margin-bottom:22px"><div class="sec-title">Pay Period</div>'+
+      '<div class="row">'+
+        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Start Date</div><input class="input" type="date" value="'+esc(s.payPeriodStart)+'" data-s="payPeriodStart" data-t="str" /></div>'+
+        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Length (weeks)</div><input class="input" type="number" step="1" value="'+s.payPeriodWeeks+'" data-s="payPeriodWeeks" data-t="int" /></div>'+
+      '</div>'+
+    '</div>'+
+    '<div style="margin-bottom:22px"><div class="sec-title">Reminders</div>'+
+      '<div class="card"><div class="row-between" style="margin-bottom:12px"><span style="font-size:14px;font-weight:500">Notifications</span>'+nb+'</div>'+nContent+'</div>'+
+    '</div>'+
+    '<div style="margin-bottom:22px"><div class="sec-title">Data</div>'+
+      '<button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:14px;margin-bottom:10px" data-a="export">📋 Export Data for Claude</button>'+
+      '<p style="font-size:12px;color:#6b7080;margin-bottom:18px;line-height:1.5">Exports all your clock records — paste into Claude to verify your pay.</p>'+
+      '<button class="btn" style="background:#ef444422;color:#ef4444;width:100%;padding:14px" data-a="conf-reset">🗑️ Reset All Data</button>'+
+    '</div>'+
+    '<p style="font-size:11px;color:#2a2d35;text-align:center;padding-bottom:8px">Data stored on this device only</p>'+
+  '</div>';
 }
 
 // ── Edit Modal ─────────────────────────────────────────────────────────────────
 function htmlEdit(){
   if(!EDIT)return'';
-  const e=D.entries[EDIT]||{type:'regular',shiftType:D.settings.currentRotation==='nights'?'night':'day',clockIn:'06:00',clockOut:'18:00'};
-  const h=paidHrs(e.clockIn,e.clockOut),g=gross(h,e.shiftType);
-  const calcLine=h>0?`<div style="background:#0d1117;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:14px" id="calc-line"><span class="text-muted">Calculated: </span><strong class="text-green">${h.toFixed(1)} hrs = £${g.toFixed(2)}</strong></div>`:'<div id="calc-line"></div>';
-  const typeBtns=['regular','overtime','holiday'].map(t=>{const a=e.type===t,bg=a?(t==='overtime'?'#f97316':t==='holiday'?'#a78bfa':'#22c55e'):'#252830';return`<button class="btn" style="background:${bg};color:${a?'#fff':'#6b7080'};flex:1;font-size:12px" data-a="etyp" data-v="${t}">${t}</button>`;}).join('');
-  const shiftBtns=e.type==='holiday'?'':['night','day'].map(st=>{const a=e.shiftType===st,bg=a?(st==='night'?'#312e81':'#78350f'):'#252830',fg=a?(st==='night'?'#c4b5fd':'#fcd34d'):'#6b7080';return`<button class="btn" style="background:${bg};color:${fg};flex:1" data-a="esft" data-v="${st}">${st==='night'?'🌙 Night':'☀️ Day'}</button>`;}).join('');
-  const timeInputs=e.type==='holiday'?'':`
-    <div class="row" style="margin-bottom:16px">
-      <div style="flex:1"><div class="lbl" style="margin-bottom:5px">Clock In</div><input class="input" type="time" id="eci" value="${esc(e.clockIn||'')}" /></div>
-      <div style="flex:1"><div class="lbl" style="margin-bottom:5px">Clock Out</div><input class="input" type="time" id="eco" value="${esc(e.clockOut||'')}" /></div>
-    </div>
-    ${calcLine}
-    <div class="row" style="margin-bottom:16px">${shiftBtns}</div>`;
-  return`<div class="overlay" id="edit-ov">
-    <div class="sheet">
-      <div class="row-between" style="margin-bottom:20px">
-        <h3 style="font-size:16px;font-weight:700;margin:0">${fDate(pKey(EDIT))}</h3>
-        <button data-a="cedit" style="background:none;border:none;color:#6b7080;font-size:26px;cursor:pointer;line-height:1">×</button>
-      </div>
-      <div style="margin-bottom:16px"><div class="lbl" style="margin-bottom:8px">Day Type</div><div class="row">${typeBtns}</div></div>
-      ${timeInputs}
-      <button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:14px" data-a="cedit">Done</button>
-    </div>
-  </div>`;
+  var e=D.entries[EDIT]||{type:'regular',shiftType:D.settings.currentRotation==='nights'?'night':'day',clockIn:'06:00',clockOut:'18:00'};
+  var isOT=e.type==='overtime';
+  var h=paidHrs(e.clockIn,e.clockOut),r=getRate(e.shiftType,isOT),g=h*r;
+  var calcLine=h>0?'<div style="background:#0d1117;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:14px" id="calc-line"><span class="text-muted">Calculated: </span><strong class="text-green">'+h.toFixed(1)+' hrs × £'+r.toFixed(2)+' = £'+g.toFixed(2)+'</strong></div>':'<div id="calc-line"></div>';
+  var typeBtns=['regular','overtime','holiday'].map(function(t){var a=e.type===t,bg=a?(t==='overtime'?'#f97316':t==='holiday'?'#a78bfa':'#22c55e'):'#252830';return'<button class="btn" style="background:'+bg+';color:'+(a?'#fff':'#6b7080')+';flex:1;font-size:12px" data-a="etyp" data-v="'+t+'">'+t+'</button>';}).join('');
+  var shiftBtns=e.type==='holiday'?'':['night','day'].map(function(st){var a=e.shiftType===st,bg=a?(st==='night'?'#312e81':'#78350f'):'#252830',fg=a?(st==='night'?'#c4b5fd':'#fcd34d'):'#6b7080';return'<button class="btn" style="background:'+bg+';color:'+fg+';flex:1" data-a="esft" data-v="'+st+'">'+(st==='night'?'🌙 Night':'☀️ Day')+'</button>';}).join('');
+  var timeInputs=e.type==='holiday'?'':
+    '<div style="margin-bottom:16px"><div class="lbl" style="margin-bottom:8px">Shift Type</div><div class="row">'+shiftBtns+'</div></div>'+
+    '<div class="row" style="margin-bottom:16px">'+
+      '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Clock In</div><input class="input" type="time" id="eci" value="'+esc(e.clockIn||'')+'" /></div>'+
+      '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Clock Out</div><input class="input" type="time" id="eco" value="'+esc(e.clockOut||'')+'" /></div>'+
+    '</div>'+calcLine;
+  return'<div class="overlay" id="edit-ov">'+
+    '<div class="sheet">'+
+      '<div class="row-between" style="margin-bottom:20px">'+
+        '<h3 style="font-size:16px;font-weight:700;margin:0">'+fDate(pKey(EDIT))+'</h3>'+
+        '<button data-a="cedit" style="background:none;border:none;color:#6b7080;font-size:26px;cursor:pointer;line-height:1">×</button>'+
+      '</div>'+
+      '<div style="margin-bottom:16px"><div class="lbl" style="margin-bottom:8px">Day Type</div><div class="row">'+typeBtns+'</div></div>'+
+      timeInputs+
+      '<button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:14px" data-a="cedit">Done</button>'+
+    '</div>'+
+  '</div>';
 }
 
 // ── Confirm Modal ──────────────────────────────────────────────────────────────
 function htmlConfirm(){
   if(!CONFIRM)return'';
-  return`<div class="overlay" id="conf-ov">
-    <div class="sheet" style="max-height:none">
-      <p style="font-size:16px;text-align:center;margin-bottom:22px;line-height:1.5">${esc(CONFIRM.msg)}</p>
-      <div class="row">
-        <button class="btn" style="background:#3a3d45;color:#fff;flex:1;padding:14px" data-a="cno">Cancel</button>
-        <button class="btn" style="background:#ef4444;color:#fff;flex:1;padding:14px" data-a="cyes">Confirm</button>
-      </div>
-    </div>
-  </div>`;
+  return'<div class="overlay" id="conf-ov">'+
+    '<div class="sheet" style="max-height:none">'+
+      '<p style="font-size:16px;text-align:center;margin-bottom:22px;line-height:1.5">'+esc(CONFIRM.msg)+'</p>'+
+      '<div class="row">'+
+        '<button class="btn" style="background:#3a3d45;color:#fff;flex:1;padding:14px" data-a="cno">Cancel</button>'+
+        '<button class="btn" style="background:#ef4444;color:#fff;flex:1;padding:14px" data-a="cyes">Confirm</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
 }
 
 // ── Export Modal ───────────────────────────────────────────────────────────────
 function htmlExport(){
   if(!EXPORT)return'';
-  return`<div class="overlay" id="exp-ov">
-    <div class="sheet">
-      <div class="row-between" style="margin-bottom:12px">
-        <h3 style="font-size:15px;font-weight:700;margin:0">Clock Data Export</h3>
-        <button data-a="cexp" style="background:none;border:none;color:#6b7080;font-size:26px;cursor:pointer;line-height:1">×</button>
-      </div>
-      <p style="font-size:12px;color:#6b7080;margin-bottom:10px">Select all and copy, then paste into Claude:</p>
-      <textarea class="input" id="exp-ta" readonly>${esc(EXPORT)}</textarea>
-      <button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:14px;margin-top:12px" data-a="copy-exp">Copy All</button>
-    </div>
-  </div>`;
+  return'<div class="overlay" id="exp-ov">'+
+    '<div class="sheet">'+
+      '<div class="row-between" style="margin-bottom:12px">'+
+        '<h3 style="font-size:15px;font-weight:700;margin:0">Clock Data Export</h3>'+
+        '<button data-a="cexp" style="background:none;border:none;color:#6b7080;font-size:26px;cursor:pointer;line-height:1">×</button>'+
+      '</div>'+
+      '<p style="font-size:12px;color:#6b7080;margin-bottom:10px">Select all and copy, then paste into Claude:</p>'+
+      '<textarea class="input" id="exp-ta" readonly>'+esc(EXPORT)+'</textarea>'+
+      '<button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:14px;margin-top:12px" data-a="copy-exp">Copy All</button>'+
+    '</div>'+
+  '</div>';
 }
 
 // ── Nav ────────────────────────────────────────────────────────────────────────
 function htmlNav(){
-  return`<nav class="nav">${[['today','⏱','Today'],['calendar','📅','Calendar'],['settings','⚙️','Settings']].map(([v,ic,l])=>
-    `<button class="nav-btn${VIEW===v?' active':''}" data-a="nav" data-v="${v}"><span class="nav-icon">${ic}</span><span>${l}</span></button>`).join('')}</nav>`;
+  return'<nav class="nav">'+[['today','⏱','Today'],['calendar','📅','Calendar'],['settings','⚙️','Settings']].map(function(x){
+    return'<button class="nav-btn'+(VIEW===x[0]?' active':'')+'" data-a="nav" data-v="'+x[0]+'"><span class="nav-icon">'+x[1]+'</span><span>'+x[2]+'</span></button>';
+  }).join('')+'</nav>';
 }
 
 // ── Render ─────────────────────────────────────────────────────────────────────
 function render(){
-  const app=document.getElementById('app');
-  app.innerHTML=`${htmlStats()}<div class="main-scroll">${VIEW==='today'?htmlToday():VIEW==='calendar'?htmlCal():htmlSettings()}</div>${htmlNav()}${htmlEdit()}${htmlConfirm()}${htmlExport()}`;
+  var app=document.getElementById('app');
+  var content=VIEW==='today'?htmlToday():VIEW==='calendar'?htmlCal():htmlSettings();
+  app.innerHTML=htmlStats()+'<div class="main-scroll">'+content+'</div>'+htmlNav()+htmlEdit()+htmlConfirm()+htmlExport();
   bind();
 }
 
 // ── Bind Events ────────────────────────────────────────────────────────────────
 function bind(){
-  const app=document.getElementById('app');
+  var app=document.getElementById('app');
 
-  // Setting inputs — save on change
-  app.querySelectorAll('[data-s]').forEach(inp=>{
-    inp.addEventListener('change',ev=>{
-      const k=ev.target.dataset.s,tp=ev.target.dataset.t;
-      let v=ev.target.value;
+  // Setting inputs
+  var inputs=app.querySelectorAll('[data-s]');
+  for(var i=0;i<inputs.length;i++){
+    inputs[i].addEventListener('change',function(ev){
+      var k=ev.target.dataset.s,tp=ev.target.dataset.t,v=ev.target.value;
       if(tp==='flt')v=parseFloat(v)||0;
       else if(tp==='int')v=parseInt(v)||1;
       setSetting(k,v);schedRem();
     });
-  });
+  }
 
-  // Edit modal time inputs — live calc
-  const eci=document.getElementById('eci'),eco=document.getElementById('eco');
-  if(eci&&EDIT)eci.addEventListener('change',ev=>{patchEntry(EDIT,'clockIn',ev.target.value);updateCalcLine();});
-  if(eco&&EDIT)eco.addEventListener('change',ev=>{patchEntry(EDIT,'clockOut',ev.target.value);updateCalcLine();});
+  // Edit modal time inputs
+  var eci=document.getElementById('eci'),eco=document.getElementById('eco');
+  if(eci&&EDIT)eci.addEventListener('change',function(ev){patchEntry(EDIT,'clockIn',ev.target.value);updateCalcLine();});
+  if(eco&&EDIT)eco.addEventListener('change',function(ev){patchEntry(EDIT,'clockOut',ev.target.value);updateCalcLine();});
 
-  // Delegation
+  // Click delegation
   app.addEventListener('click',onClick);
 }
 
 function updateCalcLine(){
   if(!EDIT)return;
-  const e=D.entries[EDIT];if(!e)return;
-  const h=paidHrs(e.clockIn,e.clockOut),g=gross(h,e.shiftType);
-  const el=document.getElementById('calc-line');
-  if(el&&h>0)el.innerHTML=`<span class="text-muted">Calculated: </span><strong class="text-green">${h.toFixed(1)} hrs = £${g.toFixed(2)}</strong>`;
+  var e=D.entries[EDIT];if(!e)return;
+  var isOT=e.type==='overtime';
+  var h=paidHrs(e.clockIn,e.clockOut),r=getRate(e.shiftType,isOT),g=h*r;
+  var el=document.getElementById('calc-line');
+  if(el&&h>0)el.innerHTML='<span class="text-muted">Calculated: </span><strong class="text-green">'+h.toFixed(1)+' hrs × £'+r.toFixed(2)+' = £'+g.toFixed(2)+'</strong>';
 }
 
 function onClick(ev){
-  const btn=ev.target.closest('[data-a]');if(!btn)return;
-  const a=btn.dataset.a,k=btn.dataset.k,v=btn.dataset.v;
-  const tok=toKey(new Date());
+  var btn=ev.target.closest('[data-a]');if(!btn)return;
+  var a=btn.dataset.a,k=btn.dataset.k,v=btn.dataset.v;
+  var tok=toKey(new Date());
   switch(a){
     case'cin':       clockIn();break;
     case'cout':      clockOut();break;
-    case'tog-ot':    dayType(tok,D.entries[tok]?.type==='overtime'?'regular':'overtime');break;
-    case'tog-hol':   dayType(tok,D.entries[tok]?.type==='holiday'?'regular':'holiday');break;
+    case'tog-ot':    dayType(tok,D.entries[tok]&&D.entries[tok].type==='overtime'?'regular':'overtime');break;
+    case'tog-hol':   dayType(tok,D.entries[tok]&&D.entries[tok].type==='holiday'?'regular':'holiday');break;
     case'set-nights':setSetting('currentRotation','nights');break;
     case'set-days':  setSetting('currentRotation','days');break;
     case'nav':       VIEW=v;SEL=null;render();break;
@@ -479,33 +616,33 @@ function onClick(ev){
     case'cedit':     EDIT=null;render();break;
     case'add-entry': patchEntry(k,'type','regular');EDIT=k;render();break;
     case'set-hol':   dayType(k,'holiday');break;
-    case'conf-del':  CONFIRM={msg:'Delete this entry?',action:()=>delEntry(k)};render();break;
-    case'conf-reset':CONFIRM={msg:'Delete ALL data? This cannot be undone.',action:()=>{D={entries:{},settings:{...DEF_S}};persist(D);render();toast('All data cleared');}};render();break;
+    case'conf-del':  CONFIRM={msg:'Delete this entry?',action:function(){delEntry(k);}};render();break;
+    case'conf-reset':CONFIRM={msg:'Delete ALL data? This cannot be undone.',action:function(){D={entries:{},settings:Object.assign({},DEF_S)};persist(D);CONFIRM=null;render();toast('All data cleared');}};render();break;
     case'cno':       CONFIRM=null;render();break;
-    case'cyes':      if(CONFIRM){CONFIRM.action();CONFIRM=null;}break;
+    case'cyes':      if(CONFIRM){CONFIRM.action();}break;
     case'export':    doExport();break;
     case'cexp':      EXPORT=null;render();break;
-    case'copy-exp':  {const ta=document.getElementById('exp-ta');if(ta)navigator.clipboard?.writeText(ta.value).then(()=>toast('Copied ✓'));}break;
+    case'copy-exp':  var ta=document.getElementById('exp-ta');if(ta&&navigator.clipboard)navigator.clipboard.writeText(ta.value).then(function(){toast('Copied ✓');});break;
     case'en-notif':  enableNotif();break;
     case'dis-notif': setSetting('notificationsEnabled',false);break;
-    case'etyp':      if(EDIT){const base=D.entries[EDIT]||{};const ne={...base,type:v};if(v==='holiday'){delete ne.clockIn;delete ne.clockOut;}D={...D,entries:{...D.entries,[EDIT]:ne}};persist(D);render();}break;
+    case'etyp':      if(EDIT){var base=D.entries[EDIT]||{};var ne=Object.assign({},base,{type:v});if(v==='holiday'){delete ne.clockIn;delete ne.clockOut;}var ents=Object.assign({},D.entries);ents[EDIT]=ne;D=Object.assign({},D,{entries:ents});persist(D);render();}break;
     case'esft':      if(EDIT){patchEntry(EDIT,'shiftType',v);render();}break;
   }
 }
 
-// ── Tick (live clock & shift timer) ───────────────────────────────────────────
+// ── Tick ────────────────────────────────────────────────────────────────────────
 function tick(){
-  const now=new Date(),cl=document.getElementById('live-clock');
-  if(cl)cl.innerHTML=`${pad(now.getHours())}:${pad(now.getMinutes())}<span style="font-size:22px;color:#6b7080">:${pad(now.getSeconds())}</span>`;
-  const k=toKey(now),e=D.entries[k];
-  if(e?.clockIn&&!e?.clockOut){
-    const[h,m]=e.clockIn.split(':').map(Number),sm=h*60+m,nm=now.getHours()*60+now.getMinutes();
-    let diff=nm-sm;if(diff<0)diff+=1440;
-    const elH=Math.floor(diff/60),elM=diff%60,rem=D.settings.shiftLengthHrs*60-diff;
-    const rH=Math.floor(Math.max(0,rem)/60),rM=Math.floor(Math.max(0,rem)%60);
-    const elEl=document.getElementById('el-val'),remEl=document.getElementById('rem-val');
-    if(elEl)elEl.textContent=`${elH}h ${pad(elM)}m`;
-    if(remEl){remEl.textContent=rem>0?`${rH}h ${pad(rM)}m`:'Done ✓';remEl.style.color=rem<=0?'#22c55e':'#f59e0b';}
+  var now=new Date(),cl=document.getElementById('live-clock');
+  if(cl)cl.innerHTML=pad(now.getHours())+':'+pad(now.getMinutes())+'<span style="font-size:22px;color:#6b7080">:'+pad(now.getSeconds())+'</span>';
+  var k=toKey(now),e=D.entries[k];
+  if(e&&e.clockIn&&!e.clockOut){
+    var cp=e.clockIn.split(':').map(Number),sm=cp[0]*60+cp[1],nm=now.getHours()*60+now.getMinutes();
+    var diff=nm-sm;if(diff<0)diff+=1440;
+    var elH=Math.floor(diff/60),elM=diff%60,rem=D.settings.shiftLengthHrs*60-diff;
+    var rH=Math.floor(Math.max(0,rem)/60),rM=Math.floor(Math.max(0,rem)%60);
+    var elEl=document.getElementById('el-val'),remEl=document.getElementById('rem-val');
+    if(elEl)elEl.textContent=elH+'h '+pad(elM)+'m';
+    if(remEl){remEl.textContent=rem>0?rH+'h '+pad(rM)+'m':'Done ✓';remEl.style.color=rem<=0?'#22c55e':'#f59e0b';}
   }
 }
 
@@ -513,7 +650,7 @@ function tick(){
 render();
 setInterval(tick,1000);
 schedRem();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(e=>console.log('SW:',e)));
+if('serviceWorker'in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(e){console.log('SW:',e);});});
 </script>
 </body>
 </html>
