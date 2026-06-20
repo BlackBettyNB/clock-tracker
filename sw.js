@@ -1,4 +1,4 @@
-var CACHE_NAME = 'clock-tracker-v3';
+var CACHE_NAME = 'clock-tracker-v4';
 
 var URLS_TO_CACHE = [
   './index.html',
