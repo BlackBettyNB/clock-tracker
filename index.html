@@ -38,9 +38,7 @@
     .cal-day.has-entry{color:#e8eaed}
     .cal-day.is-today{color:#4a9eff;font-weight:700;outline:1px solid #4a9eff44}
     .cal-day.sel{background:#4a9eff!important;color:#fff!important;outline:none}
-    .cal-day.regular{background:#22c55e18}
-    .cal-day.overtime{background:#f9731622}
-    .cal-day.holiday{background:#a78bfa22}
+    .cal-day.regular{background:#22c55e18}.cal-day.overtime{background:#f9731622}.cal-day.holiday{background:#a78bfa22}.cal-day.halfholiday{background:#c084fc22}.cal-day.sickness{background:#38bdf822}
     .cal-dot{width:5px;height:5px;border-radius:50%}
     .badge{display:inline-block;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700;color:#fff}
     .input{background:#252830;border:1px solid #3a3d45;border-radius:8px;padding:10px 12px;color:#e8eaed;font-size:15px;width:100%;display:block}
@@ -48,40 +46,18 @@
     .overlay{position:fixed;inset:0;background:#000c;z-index:200;display:flex;align-items:flex-end;justify-content:center}
     .sheet{background:#1a1d23;border-radius:18px 18px 0 0;padding:24px;width:100%;max-width:480px;max-height:85dvh;overflow-y:auto;border:1px solid #2a2d35}
     .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#4a9eff;color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;z-index:300;box-shadow:0 4px 20px #0008;white-space:nowrap;pointer-events:none}
-    .row{display:flex;gap:8px}
-    .row-between{display:flex;justify-content:space-between;align-items:center}
+    .row{display:flex;gap:8px}.row-between{display:flex;justify-content:space-between;align-items:center}
     .lbl{font-size:10px;color:#6b7080;text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px}
-    .text-muted{color:#8b8f98;font-size:14px}
-    .text-green{color:#22c55e}
+    .text-muted{color:#8b8f98;font-size:14px}.text-green{color:#22c55e}
     .sec-title{font-size:12px;font-weight:700;color:#6b7080;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
   </style>
 </head>
 <body>
-<div id="app"></div>
-<div id="toast-el"></div>
+<div id="app"></div><div id="toast-el"></div>
 <script>
-// ── Constants ──────────────────────────────────────────────────────────────────
-var SK = 'jack-clock-v1';
-var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-var DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-var DEF_S = {
-  dayRate:15.13, nightRate:17.70,
-  otDayRate:22.69, otNightRate:26.55,
-  unpaidBreakHrs:0.75, shiftLengthHrs:12,
-  currentRotation:'nights',
-  payPeriodStart:'2026-05-03',payPeriodWeeks:5,
-  reminderTime1:'05:55', reminderTime2:'17:55',
-  notificationsEnabled:false
-};
-
-// ── State ──────────────────────────────────────────────────────────────────────
-var D = load();
-var VIEW='today', CAL_M=new Date().getMonth(), CAL_Y=new Date().getFullYear();
-var SEL=null, EDIT=null, CONFIRM=null, EXPORT=null, TOAST_T=null, REM_T1=null, REM_T2=null;
-
-// ── Storage ────────────────────────────────────────────────────────────────────
+var SK='jack-clock-v1',MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'],DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+var DEF_S={dayRate:15.13,nightRate:17.70,otDayRate:22.69,otNightRate:26.55,sickRate:0,unpaidBreakHrs:0.75,shiftLengthHrs:12,paidHrsPerShift:11.25,currentRotation:'nights',payPeriodStart:'2026-08-02',payPeriodWeeks:5,reminderTime1:'05:55',reminderTime2:'17:55',notificationsEnabled:false,exportFrom:'2026-07-05',lastExport:''};
 var SEED={
-// Mar 2026 — Nights (Wed/Thu/Fri)
 '2026-03-03':{type:'overtime',shiftType:'night',clockIn:'17:55',clockOut:'05:02'},
 '2026-03-04':{type:'regular',shiftType:'night',clockIn:'17:57',clockOut:'05:58'},
 '2026-03-05':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'06:02'},
@@ -89,7 +65,6 @@ var SEED={
 '2026-03-11':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'06:02'},
 '2026-03-12':{type:'regular',shiftType:'night',clockIn:'23:58',clockOut:'05:58'},
 '2026-03-13':{type:'regular',shiftType:'night',clockIn:'18:00',clockOut:'05:55'},
-// Mar — Days (Thu/Fri/Sat)
 '2026-03-17':{type:'overtime',shiftType:'day',clockIn:'05:58',clockOut:'17:57'},
 '2026-03-19':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:56'},
 '2026-03-20':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:56'},
@@ -98,14 +73,12 @@ var SEED={
 '2026-03-26':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'18:01'},
 '2026-03-27':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:55'},
 '2026-03-28':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:55'},
-// Apr — Days (Thu/Fri/Sat)
 '2026-04-02':{type:'regular',shiftType:'day',clockIn:'05:58',clockOut:'18:01'},
 '2026-04-03':{type:'regular',shiftType:'day',clockIn:'05:55',clockOut:'17:56'},
 '2026-04-04':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:55'},
 '2026-04-09':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'18:05'},
 '2026-04-10':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'18:01'},
 '2026-04-11':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:55'},
-// Apr — Nights (Wed/Thu/Fri)
 '2026-04-15':{type:'regular',shiftType:'night',clockIn:'17:56',clockOut:'05:56'},
 '2026-04-16':{type:'holiday',shiftType:'night'},
 '2026-04-17':{type:'holiday',shiftType:'night'},
@@ -114,12 +87,10 @@ var SEED={
 '2026-04-24':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'05:55'},
 '2026-04-29':{type:'holiday',shiftType:'night'},
 '2026-04-30':{type:'holiday',shiftType:'night'},
-// May — Nights (Wed/Thu/Fri)
 '2026-05-01':{type:'regular',shiftType:'night',clockIn:'17:52',clockOut:'05:55'},
 '2026-05-06':{type:'regular',shiftType:'night',clockIn:'17:56',clockOut:'05:55'},
 '2026-05-07':{type:'regular',shiftType:'night',clockIn:'17:55',clockOut:'05:55'},
 '2026-05-08':{type:'regular',shiftType:'night',clockIn:'17:57',clockOut:'05:55'},
-// May — Days (Thu/Fri/Sat)
 '2026-05-13':{type:'overtime',shiftType:'day',clockIn:'05:52',clockOut:'12:42'},
 '2026-05-14':{type:'regular',shiftType:'day',clockIn:'05:55',clockOut:'17:57'},
 '2026-05-15':{type:'regular',shiftType:'day',clockIn:'05:55',clockOut:'18:04'},
@@ -130,526 +101,234 @@ var SEED={
 '2026-05-28':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:56'},
 '2026-05-29':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:55'},
 '2026-05-30':{type:'regular',shiftType:'day',clockIn:'05:58',clockOut:'17:55'},
-// Jun — Days (Thu/Fri/Sat)
 '2026-06-04':{type:'regular',shiftType:'day',clockIn:'05:58',clockOut:'17:56'},
 '2026-06-05':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'18:01'},
 '2026-06-06':{type:'holiday',shiftType:'day'},
-// Jun — Nights (Wed/Thu/Fri)
 '2026-06-10':{type:'holiday',shiftType:'night'},
 '2026-06-11':{type:'holiday',shiftType:'night'},
 '2026-06-12':{type:'holiday',shiftType:'night'},
 '2026-06-17':{type:'regular',shiftType:'night',clockIn:'23:53',clockOut:'05:55'},
-'2026-06-18':{type:'regular',shiftType:'night',clockIn:'17:54',clockOut:'06:02'}
+'2026-06-18':{type:'regular',shiftType:'night',clockIn:'17:54',clockOut:'06:02'},
+'2026-06-19':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'05:55'},
+'2026-06-24':{type:'regular',shiftType:'night',clockIn:'18:00',clockOut:'05:57'},
+'2026-06-25':{type:'regular',shiftType:'night',clockIn:'17:56',clockOut:'05:56'},
+'2026-06-26':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'05:55'},
+'2026-07-01':{type:'regular',shiftType:'night',clockIn:'17:57',clockOut:'05:56'},
+'2026-07-02':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'05:55'},
+'2026-07-03':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'05:56'},
+'2026-07-06':{type:'overtime',shiftType:'day',clockIn:'05:56',clockOut:'17:55'},
+'2026-07-09':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:55'},
+'2026-07-10':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:58'},
+'2026-07-11':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:55'},
+'2026-07-16':{type:'halfholiday',shiftType:'day',clockIn:'05:56',clockOut:'11:51'},
+'2026-07-17':{type:'regular',shiftType:'day',clockIn:'05:55',clockOut:'18:00'},
+'2026-07-18':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:55'},
+'2026-07-21':{type:'overtime',shiftType:'day',clockIn:'10:06',clockOut:'17:55'},
+'2026-07-23':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:58'},
+'2026-07-24':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:55'},
+'2026-07-25':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:55'},
+'2026-07-30':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:55'},
+'2026-07-31':{type:'regular',shiftType:'day',clockIn:'05:57',clockOut:'17:59'},
+'2026-08-01':{type:'regular',shiftType:'day',clockIn:'05:56',clockOut:'17:55'},
+'2026-08-05':{type:'regular',shiftType:'night',clockIn:'17:56',clockOut:'05:55'},
+'2026-08-06':{type:'regular',shiftType:'day',clockIn:'05:58',clockOut:'17:56'},
+'2026-08-07':{type:'regular',shiftType:'night',clockIn:'17:56',clockOut:'05:56'},
+'2026-08-12':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'05:55'},
+'2026-08-13':{type:'regular',shiftType:'night',clockIn:'17:58',clockOut:'05:57'},
+'2026-08-14':{type:'regular',shiftType:'night',clockIn:'17:59',clockOut:'05:56'},
+'2026-08-19':{type:'regular',shiftType:'night',clockIn:'17:57',clockOut:'05:59'},
+'2026-08-20':{type:'regular',shiftType:'night',clockIn:'17:57',clockOut:'05:58'},
+'2026-08-21':{type:'regular',shiftType:'night',clockIn:'17:57',clockOut:'05:55'},
+'2026-08-26':{type:'regular',shiftType:'night',clockIn:'17:54',clockOut:'06:03'},
+'2026-08-27':{type:'regular',shiftType:'night',clockIn:'17:54',clockOut:'05:58'},
+'2026-08-28':{type:'regular',shiftType:'night',clockIn:'17:53',clockOut:'00:05'},
+'2026-09-03':{type:'regular',shiftType:'day',clockIn:'05:52',clockOut:'11:53'},
+'2026-09-04':{type:'regular',shiftType:'day',clockIn:'05:53',clockOut:'17:55'},
+'2026-09-05':{type:'regular',shiftType:'day',clockIn:'05:51',clockOut:'17:55'},
+'2026-09-09':{type:'regular',shiftType:'night',clockIn:'17:56',clockOut:'05:55'},
+'2026-09-10':{type:'regular',shiftType:'night',clockIn:'17:57',clockOut:'05:56'},
+'2026-09-11':{type:'regular',shiftType:'night',clockIn:'17:51',clockOut:'05:55'}
 };
 
-function load(){
-  try{var r=localStorage.getItem(SK);if(r){var d=JSON.parse(r);d.settings=Object.assign({},DEF_S,d.settings);return d;}}catch(e){}
-  return{entries:Object.assign({},SEED),settings:Object.assign({},DEF_S)};
-}
+var D=load(),VIEW='today',CAL_M=new Date().getMonth(),CAL_Y=new Date().getFullYear();
+var SEL=null,EDIT=null,CONFIRM=null,EXPORT=null,TOAST_T=null,REM_T1=null,REM_T2=null;
+
+function load(){try{var r=localStorage.getItem(SK);if(r){var d=JSON.parse(r);d.settings=Object.assign({},DEF_S,d.settings);return d;}}catch(e){}return{entries:Object.assign({},SEED),settings:Object.assign({},DEF_S)};}
 function persist(d){try{localStorage.setItem(SK,JSON.stringify(d));}catch(e){}}
-function save(d,doRender){D=d;persist(d);if(doRender!==false)render();}
-function setSetting(k,v){save(Object.assign({},D,{settings:Object.assign({},D.settings)}));D.settings[k]=v;persist(D);render();}
+function save(d,skip){D=d;persist(d);if(!skip)render();}
+function setSetting(k,v){var s=Object.assign({},D.settings);s[k]=v;save(Object.assign({},D,{settings:s}));}
 function setEntry(key,entry){var e=Object.assign({},D.entries);e[key]=entry;save(Object.assign({},D,{entries:e}));}
-function patchEntry(key,field,val){
-  var base=D.entries[key]||{type:'regular',shiftType:D.settings.currentRotation==='nights'?'night':'day'};
-  var e=Object.assign({},base);e[field]=val;
-  var ents=Object.assign({},D.entries);ents[key]=e;
-  D=Object.assign({},D,{entries:ents});persist(D);
+function patchEntry(key,field,val){var base=D.entries[key]||{type:'regular',shiftType:D.settings.currentRotation==='nights'?'night':'day'};var e=Object.assign({},base);e[field]=val;var ents=Object.assign({},D.entries);ents[key]=e;D=Object.assign({},D,{entries:ents});persist(D);}
+
+var pad=function(n){return String(n).padStart(2,'0');};
+var toKey=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
+var pKey=function(k){var p=k.split('-').map(Number);return new Date(p[0],p[1]-1,p[2]);};
+var fTime=function(d){return pad(d.getHours())+':'+pad(d.getMinutes());};
+var fDate=function(d){return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});};
+var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
+function grid(y,m){var f=new Date(y,m,1),sd=f.getDay()-1;if(sd<0)sd=6;var ds=new Date(y,m+1,0).getDate(),c=[];for(var i=0;i<sd;i++)c.push(null);for(var d=1;d<=ds;d++)c.push(d);return c;}
+function yesterday(){var d=new Date();d.setDate(d.getDate()-1);return d;}
+
+function getRate(st,isOT){if(isOT)return st==='night'?D.settings.otNightRate:D.settings.otDayRate;return st==='night'?D.settings.nightRate:D.settings.dayRate;}
+function getCurrentRate(){return D.settings.currentRotation==='nights'?D.settings.nightRate:D.settings.dayRate;}
+function typeBg(t){return t==='overtime'?'#f97316':t==='holiday'?'#a78bfa':t==='halfholiday'?'#c084fc':t==='sickness'?'#38bdf8':'#22c55e';}
+function typeLabel(t){return t==='halfholiday'?'half hol':t||'regular';}
+function badge(t){return'<span class="badge" style="background:'+typeBg(t)+'">'+esc(typeLabel(t))+'</span>';}
+
+function rawHours(ci,co){if(!ci||!co)return 0;var p1=ci.split(':').map(Number),p2=co.split(':').map(Number);var mins=(p2[0]*60+p2[1])-(p1[0]*60+p1[1]);if(mins<0)mins+=1440;return mins/60;}
+function calcLate(clockIn,shiftStart){var ci=clockIn.split(':').map(Number),ss=shiftStart.split(':').map(Number);var diff=(ci[0]*60+ci[1])-(ss[0]*60+ss[1]);if(diff<-720)diff+=1440;return Math.max(0,diff);}
+function calcEntry(e){
+  if(!e)return{hours:0,rate:0,gross:0};
+  var std=D.settings.paidHrsPerShift;
+  if(e.type==='holiday'||e.type==='halfholiday'){var r=getRate(e.shiftType,false);return{hours:std,rate:r,gross:std*r};}
+  if(e.type==='sickness'){var r=D.settings.sickRate||0;return{hours:std,rate:r,gross:std*r};}
+  if(!e.clockIn||!e.clockOut)return{hours:0,rate:getRate(e.shiftType,e.type==='overtime'),gross:0};
+  var isOT=e.type==='overtime',rate=getRate(e.shiftType,isOT);
+  if(isOT){var raw=rawHours(e.clockIn,e.clockOut),brk=raw>=12?0.75:0.5;var hrs=raw-brk;if(hrs<0)hrs=0;return{hours:hrs,rate:rate,gross:hrs*rate};}
+  var ss=e.shiftType==='night'?'18:00':'06:00';var late=calcLate(e.clockIn,ss);var hrs=std-(late/60);if(hrs<0)hrs=0;
+  return{hours:hrs,rate:rate,gross:hrs*rate};
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-function pad(n){return String(n).padStart(2,'0');}
-function toKey(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
-function pKey(k){var p=k.split('-').map(Number);return new Date(p[0],p[1]-1,p[2]);}
-function fTime(d){return pad(d.getHours())+':'+pad(d.getMinutes());}
-function fDate(d){return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});}
-function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function getActiveShift(){var now=new Date(),tk=toKey(now),te=D.entries[tk]||null;if(te&&te.clockIn&&!te.clockOut)return{key:tk,entry:te,isOvernight:false};var yd=yesterday(),yk=toKey(yd),ye=D.entries[yk]||null;if(ye&&ye.clockIn&&!ye.clockOut&&ye.shiftType==='night')return{key:yk,entry:ye,isOvernight:true};return null;}
 
-function grid(y,m){
-  var first=new Date(y,m,1),sd=first.getDay()-1;if(sd<0)sd=6;
-  var days=new Date(y,m+1,0).getDate(),cells=[];
-  for(var i=0;i<sd;i++)cells.push(null);
-  for(var d=1;d<=days;d++)cells.push(d);return cells;
-}
-
-// ── Rate helper ────────────────────────────────────────────────────────────────
-function getRate(shiftType, isOvertime){
-  if(isOvertime){return shiftType==='night'?D.settings.otNightRate:D.settings.otDayRate;}
-  return shiftType==='night'?D.settings.nightRate:D.settings.dayRate;
-}
-function getCurrentRate(){
-  return D.settings.currentRotation==='nights'?D.settings.nightRate:D.settings.dayRate;
-}
-function getEntryRate(e){
-  if(!e)return getCurrentRate();
-  return getRate(e.shiftType, e.type==='overtime');
-}
-
-// ── Calculations ───────────────────────────────────────────────────────────────
-function paidHrs(ci,co){
-  if(!ci||!co)return 0;
-  var p1=ci.split(':').map(Number),p2=co.split(':').map(Number);
-  var mins=(p2[0]*60+p2[1])-(p1[0]*60+p1[1]);if(mins<0)mins+=1440;
-  return Math.max(0,mins/60-D.settings.unpaidBreakHrs);
-}
-function gross(hrs,shiftType,isOvertime){return hrs*getRate(shiftType,isOvertime);}
 function weekStart(d){var dt=new Date(d),day=dt.getDay();dt.setDate(dt.getDate()-(day===0?6:day-1));dt.setHours(0,0,0,0);return dt;}
 function taxYearStart(){var now=new Date(),y=now.getFullYear(),after=now.getMonth()>3||(now.getMonth()===3&&now.getDate()>=6);return new Date(after?y:y-1,3,6);}
-function totals(){
-  var wP=0,mP=0,yP=0,wH=0,mH=0,yH=0;
-  var now=new Date(),ws=weekStart(now),ms=new Date(now.getFullYear(),now.getMonth(),1),ys=taxYearStart();
-  var keys=Object.keys(D.entries);
-  for(var i=0;i<keys.length;i++){
-    var k=keys[i],e=D.entries[k];
-    if(e.type==='holiday'||!e.clockIn||!e.clockOut)continue;
-    var dt=pKey(k),h=paidHrs(e.clockIn,e.clockOut),g=gross(h,e.shiftType,e.type==='overtime');
-    if(dt>=ws){wP+=g;wH+=h;}if(dt>=ms){mP+=g;mH+=h;}if(dt>=ys){yP+=g;yH+=h;}
-  }
-  return{wP:wP,mP:mP,yP:yP,wH:wH,mH:mH,yH:yH};
-}
-function payPeriod(){
-  if(!D.settings.payPeriodStart)return'Not set';
-  var wms=D.settings.payPeriodWeeks*7*86400000,ps=new Date(D.settings.payPeriodStart),now=new Date();
-  while(ps.getTime()+wms<=now.getTime())ps=new Date(ps.getTime()+wms);
-  var pe=new Date(ps.getTime()+wms-86400000);
-  var f=function(d){return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});};
-  return f(ps)+' – '+f(pe);
-}
+function totals(){var wP=0,mP=0,yP=0,wH=0,mH=0,yH=0,now=new Date(),ws=weekStart(now),ms=new Date(now.getFullYear(),now.getMonth(),1),ys=taxYearStart();var keys=Object.keys(D.entries);for(var i=0;i<keys.length;i++){var k=keys[i],c=calcEntry(D.entries[k]);if(c.hours<=0)continue;var dt=pKey(k);if(dt>=ws){wP+=c.gross;wH+=c.hours;}if(dt>=ms){mP+=c.gross;mH+=c.hours;}if(dt>=ys){yP+=c.gross;yH+=c.hours;}}return{wP:wP,mP:mP,yP:yP,wH:wH,mH:mH,yH:yH};}
+function payPeriod(){if(!D.settings.payPeriodStart)return'Not set';var wms=D.settings.payPeriodWeeks*7*86400000,ps=new Date(D.settings.payPeriodStart),now=new Date();while(ps.getTime()+wms<=now.getTime())ps=new Date(ps.getTime()+wms);var pe=new Date(ps.getTime()+wms-86400000),f=function(d){return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});};return f(ps)+' – '+f(pe);}
 
-// ── Actions ────────────────────────────────────────────────────────────────────
-function clockIn(){
-  var now=new Date(),t=fTime(now),k=toKey(now);
-  var existing=D.entries[k]||{};
-  var e=Object.assign({},existing,{
-    type:existing.type||'regular',
-    shiftType:existing.shiftType||(D.settings.currentRotation==='nights'?'night':'day'),
-    clockIn:t,clockOut:null
-  });
-  setEntry(k,e);toast('Clocked in at '+t);
-}
-function clockOut(){
-  var now=new Date(),t=fTime(now),k=toKey(now);
-  if(!D.entries[k]||!D.entries[k].clockIn)return;
-  setEntry(k,Object.assign({},D.entries[k],{clockOut:t}));toast('Clocked out at '+t);
-}
-function dayType(key,type){
-  var base=D.entries[key]||{shiftType:D.settings.currentRotation==='nights'?'night':'day'};
-  var e=Object.assign({},base,{type:type});
-  if(type==='holiday'){delete e.clockIn;delete e.clockOut;}
-  setEntry(key,e);
-  toast(type==='holiday'?'🌴 Marked as holiday':type==='overtime'?'Marked as overtime':'Set to regular');
-}
-function delEntry(key){
-  var e=Object.assign({},D.entries);delete e[key];
-  EDIT=null;SEL=null;CONFIRM=null;
-  save(Object.assign({},D,{entries:e}));
-  toast('Entry deleted');
-}
+function clockIn(){var now=new Date(),t=fTime(now),k=toKey(now);var existing=D.entries[k]||{};setEntry(k,Object.assign({},existing,{type:existing.type||'regular',shiftType:existing.shiftType||(D.settings.currentRotation==='nights'?'night':'day'),clockIn:t,clockOut:null}));toast('Clocked in at '+t);}
+function clockOutFor(key){var now=new Date(),t=fTime(now);if(!D.entries[key]||!D.entries[key].clockIn)return;setEntry(key,Object.assign({},D.entries[key],{clockOut:t}));toast('Clocked out at '+t);}
+function dayType(key,type){var base=D.entries[key]||{shiftType:D.settings.currentRotation==='nights'?'night':'day'};var e=Object.assign({},base,{type:type});if(type==='holiday'||type==='sickness'){delete e.clockIn;delete e.clockOut;}setEntry(key,e);var labels={holiday:'🌴 Holiday',halfholiday:'½ Holiday',overtime:'Marked as overtime',sickness:'🤒 Sickness',regular:'Set to regular'};toast(labels[type]||'Updated');}
+function delEntry(key){var e=Object.assign({},D.entries);delete e[key];EDIT=null;SEL=null;CONFIRM=null;save(Object.assign({},D,{entries:e}));toast('Entry deleted');}
+function toast(msg){var el=document.getElementById('toast-el');if(!el)return;el.innerHTML='<div class="toast">'+esc(msg)+'</div>';if(TOAST_T)clearTimeout(TOAST_T);TOAST_T=setTimeout(function(){if(el)el.innerHTML='';},2500);}
 
-// ── Toast ──────────────────────────────────────────────────────────────────────
-function toast(msg){
-  var el=document.getElementById('toast-el');if(!el)return;
-  el.innerHTML='<div class="toast">'+esc(msg)+'</div>';
-  if(TOAST_T)clearTimeout(TOAST_T);TOAST_T=setTimeout(function(){if(el)el.innerHTML='';},2500);
-}
+function schedRem(){if(REM_T1)clearTimeout(REM_T1);if(REM_T2)clearTimeout(REM_T2);if(!D.settings.notificationsEnabled)return;function sched(ts,id){if(!ts)return null;var p=ts.split(':').map(Number),tgt=new Date();tgt.setHours(p[0],p[1],0,0);var dl=tgt-Date.now();if(dl<0)dl+=86400000;return setTimeout(function(){if(Notification.permission!=='granted')return;var fresh=load(),k=toKey(new Date()),e=fresh.entries[k];if(e&&e.clockIn&&!e.clockOut)new Notification('⏰ Clock Out',{body:'Clocked in at '+e.clockIn,tag:'co-'+id});},dl);}REM_T1=sched(D.settings.reminderTime1,'1');REM_T2=sched(D.settings.reminderTime2,'2');}
+function enableNotif(){if(!('Notification'in window)){toast('Not supported');return;}Notification.requestPermission().then(function(p){if(p==='granted'){setSetting('notificationsEnabled',true);toast('Notifications on ✓');schedRem();}else toast('Denied');});}
 
-// ── Notifications ──────────────────────────────────────────────────────────────
-function schedRem(){
-  if(REM_T1)clearTimeout(REM_T1);
-  if(REM_T2)clearTimeout(REM_T2);
-  if(!D.settings.notificationsEnabled)return;
-  function sched(timeStr,id){
-    if(!timeStr)return null;
-    var p=timeStr.split(':').map(Number),tgt=new Date();
-    tgt.setHours(p[0],p[1],0,0);var delay=tgt-Date.now();if(delay<0)delay+=86400000;
-    return setTimeout(function(){
-      if(Notification.permission!=='granted')return;
-      var fresh=load(),k=toKey(new Date()),e=fresh.entries[k];
-      if(e&&e.clockIn&&!e.clockOut)new Notification('⏰ Clock Out Reminder',{body:'Clocked in at '+e.clockIn+' — don\'t forget to clock out!',tag:'clock-out-'+id});
-    },delay);
-  }
-  REM_T1=sched(D.settings.reminderTime1,'1');
-  REM_T2=sched(D.settings.reminderTime2,'2');
-}
-function enableNotif(){
-  if(!('Notification'in window)){toast('Notifications not supported');return;}
-  Notification.requestPermission().then(function(p){
-    if(p==='granted'){setSetting('notificationsEnabled',true);toast('Notifications enabled ✓');schedRem();}
-    else toast('Permission denied');
-  });
-}
-
-// ── Export ─────────────────────────────────────────────────────────────────────
 function genExport(){
-  var t_=totals(),now=new Date();
+  var t_=totals(),now=new Date(),fromDate=D.settings.exportFrom||'';
   var t='CLOCK TRACKER — DATA EXPORT\nGenerated: '+fDate(now)+' '+fTime(now)+'\n';
-  t+='Day Rate: £'+D.settings.dayRate+'/hr  |  Night Rate: £'+D.settings.nightRate+'/hr\n';
-  t+='OT Day: £'+D.settings.otDayRate+'/hr  |  OT Night: £'+D.settings.otNightRate+'/hr\n';
-  t+='Unpaid Break: '+(D.settings.unpaidBreakHrs*60)+' min  |  Shift: '+D.settings.shiftLengthHrs+' hrs\n';
-  t+='Rotation: '+D.settings.currentRotation+'  |  Pay Period: '+payPeriod()+'\n\n';
-  t+='DATE         TYPE        SHIFT   IN     OUT    HRS    RATE     GROSS\n';
-  t+=Array(68).join('─')+'\n';
-  var sorted=Object.keys(D.entries).sort();
-  for(var i=0;i<sorted.length;i++){
-    var k=sorted[i],e=D.entries[k];
-    var isOT=e.type==='overtime';
-    var h=(!e.clockIn||!e.clockOut||e.type==='holiday')?0:paidHrs(e.clockIn,e.clockOut);
-    var r=getRate(e.shiftType,isOT);
-    var g=h*r;
-    t+=k+'  '+(e.type||'regular').padEnd(11)+(e.shiftType||'-').padEnd(7)+(e.clockIn||'-').padEnd(7)+(e.clockOut||'-').padEnd(7)+h.toFixed(1).padEnd(7)+'£'+r.toFixed(2).padEnd(8)+'£'+g.toFixed(2)+'\n';
-  }
-  t+='\n'+Array(68).join('─')+'\n';
-  t+='Week:      '+t_.wH.toFixed(1)+' hrs  =  £'+t_.wP.toFixed(2)+'\n';
-  t+='Month:     '+t_.mH.toFixed(1)+' hrs  =  £'+t_.mP.toFixed(2)+'\n';
-  t+='Tax Year:  '+t_.yH.toFixed(1)+' hrs  =  £'+t_.yP.toFixed(2)+'\n';
+  t+='Day: £'+D.settings.dayRate+'/hr | Night: £'+D.settings.nightRate+'/hr | OT Day: £'+D.settings.otDayRate+'/hr | OT Night: £'+D.settings.otNightRate+'/hr\n';
+  t+='Break: '+(D.settings.unpaidBreakHrs*60)+'min | Std Shift: '+D.settings.paidHrsPerShift+'hrs | Rotation: '+D.settings.currentRotation+'\n';
+  t+='Pay Period: '+payPeriod()+(fromDate?' | Exported from: '+fromDate:'')+'\n\n';
+  t+='DATE         TYPE        SHIFT   IN     OUT    HRS    RATE     GROSS\n'+Array(70).join('─')+'\n';
+  var sorted=Object.keys(D.entries).sort(),eH=0,eG=0;
+  for(var i=0;i<sorted.length;i++){var k=sorted[i];if(fromDate&&k<fromDate)continue;var e=D.entries[k],c=calcEntry(e);eH+=c.hours;eG+=c.gross;
+    t+=k+'  '+(typeLabel(e.type)).padEnd(11)+(e.shiftType||'-').padEnd(7)+(e.clockIn||'-').padEnd(7)+(e.clockOut||'-').padEnd(7)+c.hours.toFixed(2).padEnd(7)+'£'+c.rate.toFixed(2).padEnd(8)+'£'+c.gross.toFixed(2)+'\n';}
+  t+='\n'+Array(70).join('─')+'\nExported:  '+eH.toFixed(1)+' hrs = £'+eG.toFixed(2)+'\nWeek:      '+t_.wH.toFixed(1)+' hrs = £'+t_.wP.toFixed(2)+'\nMonth:     '+t_.mH.toFixed(1)+' hrs = £'+t_.mP.toFixed(2)+'\nTax Year:  '+t_.yH.toFixed(1)+' hrs = £'+t_.yP.toFixed(2)+'\n';
   return t;
 }
-function doExport(){
-  var text=genExport();
-  if(navigator.share){navigator.share({title:'Clock Data',text:text}).catch(function(){EXPORT=text;render();});}
-  else if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){toast('Copied ✓');}).catch(function(){EXPORT=text;render();});}
-  else{EXPORT=text;render();}
-}
+function doExport(){setSetting('lastExport',new Date().toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}));var text=genExport();if(navigator.share){navigator.share({title:'Clock Data',text:text}).catch(function(){EXPORT=text;render();});}else if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){toast('Copied ✓');}).catch(function(){EXPORT=text;render();});}else{EXPORT=text;render();}}
 
-// ── Badge / helpers ────────────────────────────────────────────────────────────
-function typeBg(t){return t==='overtime'?'#f97316':t==='holiday'?'#a78bfa':'#22c55e';}
-function badge(t){return'<span class="badge" style="background:'+typeBg(t)+'">'+esc(t||'regular')+'</span>';}
+function htmlStats(){var t=totals(),rate=getCurrentRate();return'<div class="stats-bar"><div class="stats-row"><div><div class="lbl">Current Rate</div><div class="mono" style="font-size:16px;font-weight:700">£'+rate.toFixed(2)+'<span style="font-size:12px;color:#6b7080;font-weight:400">/hr — '+esc(D.settings.currentRotation)+'</span></div></div><div style="text-align:right"><div class="lbl">Pay Period</div><div style="font-size:12px;font-weight:600">'+esc(payPeriod())+'</div></div></div><div class="stat-cards">'+[['Week',t.wP],['Month',t.mP],['Tax Year',t.yP]].map(function(x){return'<div class="stat-card"><div class="stat-lbl">'+x[0]+'</div><div class="stat-val mono">£'+(x[1]||0).toFixed(0)+'</div></div>';}).join('')+'</div></div>';}
 
-// ── Stats Bar ──────────────────────────────────────────────────────────────────
-function htmlStats(){
-  var t=totals(),rate=getCurrentRate();
-  return'<div class="stats-bar">'+
-    '<div class="stats-row">'+
-      '<div><div class="lbl">Current Rate</div>'+
-        '<div class="mono" style="font-size:16px;font-weight:700">£'+rate.toFixed(2)+'<span style="font-size:12px;color:#6b7080;font-weight:400">/hr — '+esc(D.settings.currentRotation)+'</span></div></div>'+
-      '<div style="text-align:right"><div class="lbl">Pay Period</div>'+
-        '<div style="font-size:12px;font-weight:600">'+esc(payPeriod())+'</div></div>'+
-    '</div>'+
-    '<div class="stat-cards">'+
-      [['Week',t.wP],['Month',t.mP],['Tax Year',t.yP]].map(function(x){
-        return'<div class="stat-card"><div class="stat-lbl">'+x[0]+'</div><div class="stat-val mono">£'+(x[1]||0).toFixed(0)+'</div></div>';
-      }).join('')+
-    '</div>'+
-  '</div>';
-}
-
-// ── Today View ─────────────────────────────────────────────────────────────────
 function htmlToday(){
-  var now=new Date(),k=toKey(now),e=D.entries[k]||null,clkedIn=!!(e&&e.clockIn&&!e.clockOut);
-  var isOT=e&&e.type==='overtime';
-  var activeRate=e?getEntryRate(e):getCurrentRate();
+  var now=new Date(),tk=toKey(now),te=D.entries[tk]||null,active=getActiveShift(),showClockOut=!!active;
+  var activeKey=active?active.key:tk,activeEntry=active?active.entry:te,isOvernight=active?active.isOvernight:false;
   var elapsed='';
-  if(clkedIn&&e&&e.clockIn){
-    var cp=e.clockIn.split(':').map(Number),sm=cp[0]*60+cp[1],nm=now.getHours()*60+now.getMinutes();
-    var diff=nm-sm;if(diff<0)diff+=1440;
-    var elH=Math.floor(diff/60),elM=diff%60,rem=D.settings.shiftLengthHrs*60-diff;
-    var rH=Math.floor(Math.max(0,rem)/60),rM=Math.floor(Math.max(0,rem)%60);
-    var rs=rem>0?rH+'h '+pad(rM)+'m':'Done ✓',rc=rem<=0?'#22c55e':'#f59e0b';
-    elapsed='<div class="card" style="display:flex;justify-content:space-between;margin-bottom:12px">'+
-      '<div><div class="lbl">Elapsed</div><div class="mono" style="font-size:22px;font-weight:700" id="el-val">'+elH+'h '+pad(elM)+'m</div></div>'+
-      '<div style="text-align:right"><div class="lbl">Remaining</div><div class="mono" style="font-size:22px;font-weight:700;color:'+rc+'" id="rem-val">'+esc(rs)+'</div></div>'+
-    '</div>';
-  }
-  var entryCard='';
-  if(e){
-    var payLine='';
-    if(e.clockIn&&e.clockOut){
-      var h=paidHrs(e.clockIn,e.clockOut),g=gross(h,e.shiftType,isOT);
-      payLine='<div style="margin-top:8px" class="text-muted">Paid: <strong class="text-green">'+h.toFixed(1)+' hrs × £'+getEntryRate(e).toFixed(2)+' = £'+g.toFixed(2)+'</strong></div>';
-    }
-    entryCard='<div class="card" style="margin-bottom:12px">'+
-      '<div class="row-between" style="margin-bottom:8px"><span style="font-weight:600;font-size:15px">Today\'s shift</span>'+badge(e.type||'regular')+'</div>'+
-      '<div class="text-muted" style="display:flex;gap:14px;flex-wrap:wrap">'+
-        '<span>In: <strong style="color:#e8eaed">'+esc(e.clockIn||'—')+'</strong></span>'+
-        '<span>Out: <strong style="color:#e8eaed">'+esc(e.clockOut||'—')+'</strong></span>'+
-        '<span>Shift: <strong style="color:#e8eaed">'+esc(e.shiftType||'—')+'</strong></span>'+
-        (isOT?'<span>Rate: <strong style="color:#f97316">OT £'+getEntryRate(e).toFixed(2)+'</strong></span>':'')+
-      '</div>'+payLine+'</div>';
-  }
-  var tp=e?e.type||'':'',otBg=tp==='overtime'?'#f97316':'#252830',holBg=tp==='holiday'?'#a78bfa':'#252830';
+  if(showClockOut&&activeEntry&&activeEntry.clockIn){var cp=activeEntry.clockIn.split(':').map(Number),ciDate=pKey(activeKey);ciDate.setHours(cp[0],cp[1],0,0);var diff=Math.floor((now.getTime()-ciDate.getTime())/60000);var elH=Math.floor(diff/60),elM=diff%60,rem=D.settings.shiftLengthHrs*60-diff;var rH=Math.floor(Math.max(0,rem)/60),rM=Math.floor(Math.max(0,rem)%60);var rs=rem>0?rH+'h '+pad(rM)+'m':'Done ✓',rc=rem<=0?'#22c55e':'#f59e0b';
+    elapsed='<div class="card" style="display:flex;justify-content:space-between;margin-bottom:12px"><div><div class="lbl">Elapsed</div><div class="mono" style="font-size:22px;font-weight:700" id="el-val">'+elH+'h '+pad(elM)+'m</div></div><div style="text-align:right"><div class="lbl">Remaining</div><div class="mono" style="font-size:22px;font-weight:700;color:'+rc+'" id="rem-val">'+esc(rs)+'</div></div></div>';}
+  var shiftCard='',displayEntry=showClockOut?activeEntry:te,displayKey=showClockOut?activeKey:tk;
+  if(displayEntry){var c=calcEntry(displayEntry),payLine='';if(displayEntry.clockIn&&displayEntry.clockOut){payLine='<div style="margin-top:8px" class="text-muted">Paid: <strong class="text-green">'+c.hours.toFixed(2)+' hrs × £'+c.rate.toFixed(2)+' = £'+c.gross.toFixed(2)+'</strong></div>';}
+    var dayLabel=isOvernight?fDate(pKey(activeKey))+'<span style="font-size:11px;color:#f59e0b"> (night shift)</span>':'Today\'s shift';
+    shiftCard='<div class="card" style="margin-bottom:12px"><div class="row-between" style="margin-bottom:8px"><span style="font-weight:600;font-size:15px">'+dayLabel+'</span>'+badge(displayEntry.type||'regular')+'</div><div class="text-muted" style="display:flex;gap:14px;flex-wrap:wrap"><span>In: <strong style="color:#e8eaed">'+esc(displayEntry.clockIn||'—')+'</strong></span><span>Out: <strong style="color:#e8eaed">'+esc(displayEntry.clockOut||'—')+'</strong></span><span>Shift: <strong style="color:#e8eaed">'+esc(displayEntry.shiftType||'—')+'</strong></span></div>'+payLine+'</div>';}
+  var tp=te?te.type||'':'';
   var nBg=D.settings.currentRotation==='nights'?'#312e81':'#252830',nFg=D.settings.currentRotation==='nights'?'#c4b5fd':'#6b7080';
   var dBg=D.settings.currentRotation==='days'?'#78350f':'#252830',dFg=D.settings.currentRotation==='days'?'#fcd34d':'#6b7080';
-  return'<div class="section">'+
-    '<div style="text-align:center;margin-bottom:22px">'+
-      '<div class="mono" id="live-clock" style="font-size:54px;font-weight:200;letter-spacing:-2px;line-height:1">'+pad(now.getHours())+':'+pad(now.getMinutes())+'<span style="font-size:22px;color:#6b7080">:'+pad(now.getSeconds())+'</span></div>'+
-      '<div style="font-size:14px;color:#6b7080;margin-top:6px">'+fDate(now)+'</div>'+
-    '</div>'+
-    '<button class="clock-btn" data-a="'+(clkedIn?'cout':'cin')+'" style="background:'+(clkedIn?'#f59e0b':'#22c55e')+';color:'+(clkedIn?'#1a1d23':'#fff')+'">'+(clkedIn?'⬛  CLOCK OUT':'▶  CLOCK IN')+'</button>'+
-    elapsed+entryCard+
-    '<div class="row" style="margin-bottom:12px">'+
-      '<button class="btn" style="background:'+otBg+';color:#fff;flex:1" data-a="tog-ot">'+(tp==='overtime'?'✓ Overtime':'+ Overtime')+'</button>'+
-      '<button class="btn" style="background:'+holBg+';color:#fff;flex:1" data-a="tog-hol">'+(tp==='holiday'?'✓ Holiday':'🌴 Holiday')+'</button>'+
-    '</div>'+
-    '<div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0">'+
-      '<span style="font-size:14px;font-weight:500">Rotation</span>'+
-      '<div class="row">'+
-        '<button class="btn" style="background:'+nBg+';color:'+nFg+';padding:7px 14px;font-size:13px" data-a="set-nights">🌙 Nights</button>'+
-        '<button class="btn" style="background:'+dBg+';color:'+dFg+';padding:7px 14px;font-size:13px" data-a="set-days">☀️ Days</button>'+
-      '</div>'+
-    '</div>'+
-  '</div>';
+  return'<div class="section"><div style="text-align:center;margin-bottom:22px"><div class="mono" id="live-clock" style="font-size:54px;font-weight:200;letter-spacing:-2px;line-height:1">'+pad(now.getHours())+':'+pad(now.getMinutes())+'<span style="font-size:22px;color:#6b7080">:'+pad(now.getSeconds())+'</span></div><div style="font-size:14px;color:#6b7080;margin-top:6px">'+fDate(now)+'</div></div>'+
+    (showClockOut?'<button class="clock-btn" data-a="cout" data-k="'+activeKey+'" style="background:#f59e0b;color:#1a1d23">⬛  CLOCK OUT</button>':'<button class="clock-btn" data-a="cin" style="background:#22c55e;color:#fff">▶  CLOCK IN</button>')+
+    elapsed+shiftCard+
+    '<div class="row" style="margin-bottom:8px"><button class="btn" style="background:'+(tp==='overtime'?'#f97316':'#252830')+';color:#fff;flex:1" data-a="tog-ot">'+(tp==='overtime'?'✓ Overtime':'+ Overtime')+'</button><button class="btn" style="background:'+(tp==='holiday'?'#a78bfa':'#252830')+';color:#fff;flex:1" data-a="tog-hol">'+(tp==='holiday'?'✓ Holiday':'🌴 Holiday')+'</button></div>'+
+    '<div class="row" style="margin-bottom:12px"><button class="btn" style="background:'+(tp==='halfholiday'?'#c084fc':'#252830')+';color:#fff;flex:1" data-a="tog-halfhol">'+(tp==='halfholiday'?'✓ ½ Holiday':'½ Holiday')+'</button><button class="btn" style="background:'+(tp==='sickness'?'#38bdf8':'#252830')+';color:#fff;flex:1" data-a="tog-sick">'+(tp==='sickness'?'✓ Sick':'🤒 Sick')+'</button></div>'+
+    '<div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0"><span style="font-size:14px;font-weight:500">Rotation</span><div class="row"><button class="btn" style="background:'+nBg+';color:'+nFg+';padding:7px 14px;font-size:13px" data-a="set-nights">🌙 Nights</button><button class="btn" style="background:'+dBg+';color:'+dFg+';padding:7px 14px;font-size:13px" data-a="set-days">☀️ Days</button></div></div></div>';
 }
 
-// ── Calendar View ──────────────────────────────────────────────────────────────
 function htmlCal(){
   var tok=toKey(new Date()),g_=grid(CAL_Y,CAL_M);
-  var cells=g_.map(function(day,i){
-    if(!day)return'<div></div>';
-    var dk=CAL_Y+'-'+pad(CAL_M+1)+'-'+pad(day),e=D.entries[dk];
-    var cls=['cal-day'];
-    if(e)cls.push('has-entry',e.type||'regular');
-    if(dk===tok)cls.push('is-today');
-    if(dk===SEL)cls.push('sel');
-    var dc=e?(e.type==='overtime'?'#f97316':e.type==='holiday'?'#a78bfa':'#22c55e'):'';
-    return'<button class="'+cls.join(' ')+'" data-a="csel" data-k="'+dk+'">'+day+(e?'<div class="cal-dot" style="background:'+dc+'"></div>':'')+'</button>';
-  }).join('');
-
+  var cells=g_.map(function(day,i){if(!day)return'<div></div>';var dk=CAL_Y+'-'+pad(CAL_M+1)+'-'+pad(day),e=D.entries[dk];var cls=['cal-day'];if(e)cls.push('has-entry',e.type||'regular');if(dk===tok)cls.push('is-today');if(dk===SEL)cls.push('sel');var dc=e?typeBg(e.type||'regular'):'';return'<button class="'+cls.join(' ')+'" data-a="csel" data-k="'+dk+'">'+day+(e?'<div class="cal-dot" style="background:'+dc+'"></div>':'')+'</button>';}).join('');
   var panel='';
-  if(SEL){
-    var e=D.entries[SEL],dO=pKey(SEL);
-    var detail='';
-    if(e){
-      var isOT=e.type==='overtime';
-      var h=(e.clockIn&&e.clockOut)?paidHrs(e.clockIn,e.clockOut):0;
-      var g=gross(h,e.shiftType,isOT);
-      var r=getEntryRate(e);
-      var pl=h>0?'<div class="text-green" style="margin-top:4px"><strong>'+h.toFixed(1)+' hrs × £'+r.toFixed(2)+' = £'+g.toFixed(2)+'</strong></div>':'';
+  if(SEL){var e=D.entries[SEL],dO=pKey(SEL),detail='';
+    if(e){var c=calcEntry(e),pl=c.hours>0?'<div class="text-green" style="margin-top:4px"><strong>'+c.hours.toFixed(2)+' hrs × £'+c.rate.toFixed(2)+' = £'+c.gross.toFixed(2)+'</strong></div>':'';
       detail='<div class="row-between" style="margin-bottom:10px"><span style="font-weight:700">'+fDate(dO)+'</span>'+badge(e.type||'regular')+'</div>'+
-        (e.type!=='holiday'?'<div class="text-muted" style="margin-bottom:10px">In: <strong style="color:#e8eaed">'+esc(e.clockIn||'—')+'</strong> → Out: <strong style="color:#e8eaed">'+esc(e.clockOut||'—')+'</strong> ('+esc(e.shiftType||'—')+(isOT?' OT':'')+')'+pl+'</div>':'')+
-        '<div class="row">'+
-          '<button class="btn" style="background:#3a3d45;color:#fff;flex:1" data-a="edit" data-k="'+SEL+'">✏️ Edit</button>'+
-          '<button class="btn" style="background:#ef444422;color:#ef4444;flex:1" data-a="conf-del" data-k="'+SEL+'">🗑️ Delete</button>'+
-        '</div>';
-    }else{
-      detail='<div style="font-weight:700;margin-bottom:12px">'+fDate(dO)+'</div>'+
-        '<div class="row">'+
-          '<button class="btn" style="background:#22c55e;color:#fff;flex:1" data-a="add-entry" data-k="'+SEL+'">+ Add Entry</button>'+
-          '<button class="btn" style="background:#a78bfa;color:#fff;flex:1" data-a="set-hol" data-k="'+SEL+'">🌴 Holiday</button>'+
-        '</div>';
-    }
-    panel='<div class="card" style="margin-top:14px">'+detail+'</div>';
-  }
-
-  return'<div class="section">'+
-    '<div class="row-between" style="margin-bottom:16px">'+
-      '<button class="btn" style="background:#252830;color:#e8eaed;padding:8px 14px" data-a="cprev">◀</button>'+
-      '<span style="font-weight:700;font-size:17px">'+MONTHS[CAL_M]+' '+CAL_Y+'</span>'+
-      '<button class="btn" style="background:#252830;color:#e8eaed;padding:8px 14px" data-a="cnext">▶</button>'+
-    '</div>'+
-    '<div class="cal-grid" style="margin-bottom:3px">'+DAYS.map(function(d){return'<div class="lbl" style="text-align:center;padding:4px 0;font-weight:600">'+d+'</div>';}).join('')+'</div>'+
-    '<div class="cal-grid">'+cells+'</div>'+
-    '<div style="display:flex;gap:14px;justify-content:center;margin-top:12px;font-size:11px;color:#6b7080">'+
-      [['#22c55e','Regular'],['#f97316','Overtime'],['#a78bfa','Holiday']].map(function(x){return'<span style="display:flex;align-items:center;gap:5px"><div class="cal-dot" style="background:'+x[0]+'"></div>'+x[1]+'</span>';}).join('')+
-    '</div>'+panel+
-  '</div>';
+        (e.type!=='holiday'&&e.type!=='sickness'?'<div class="text-muted" style="margin-bottom:10px">In: <strong style="color:#e8eaed">'+esc(e.clockIn||'—')+'</strong> → Out: <strong style="color:#e8eaed">'+esc(e.clockOut||'—')+'</strong> ('+esc(e.shiftType||'—')+(e.type==='overtime'?' OT':'')+')'+pl+'</div>':'')+
+        '<div class="row"><button class="btn" style="background:#3a3d45;color:#fff;flex:1" data-a="edit" data-k="'+SEL+'">✏️ Edit</button><button class="btn" style="background:#ef444422;color:#ef4444;flex:1" data-a="conf-del" data-k="'+SEL+'">🗑️ Delete</button></div>';
+    }else{detail='<div style="font-weight:700;margin-bottom:12px">'+fDate(dO)+'</div><div class="row"><button class="btn" style="background:#22c55e;color:#fff;flex:1" data-a="add-entry" data-k="'+SEL+'">+ Add</button><button class="btn" style="background:#a78bfa;color:#fff;flex:1" data-a="set-hol" data-k="'+SEL+'">🌴 Holiday</button></div>';}
+    panel='<div class="card" style="margin-top:14px">'+detail+'</div>';}
+  return'<div class="section"><div class="row-between" style="margin-bottom:16px"><button class="btn" style="background:#252830;color:#e8eaed;padding:8px 14px" data-a="cprev">◀</button><span style="font-weight:700;font-size:17px">'+MONTHS[CAL_M]+' '+CAL_Y+'</span><button class="btn" style="background:#252830;color:#e8eaed;padding:8px 14px" data-a="cnext">▶</button></div>'+
+    '<div class="cal-grid" style="margin-bottom:3px">'+DAYS.map(function(d){return'<div class="lbl" style="text-align:center;padding:4px 0;font-weight:600">'+d+'</div>';}).join('')+'</div><div class="cal-grid">'+cells+'</div>'+
+    '<div style="display:flex;gap:10px;justify-content:center;margin-top:12px;font-size:11px;color:#6b7080;flex-wrap:wrap">'+[['#22c55e','Regular'],['#f97316','OT'],['#a78bfa','Hol'],['#c084fc','½ Hol'],['#38bdf8','Sick']].map(function(x){return'<span style="display:flex;align-items:center;gap:4px"><div class="cal-dot" style="background:'+x[0]+'"></div>'+x[1]+'</span>';}).join('')+'</div>'+panel+'</div>';
 }
 
-// ── Settings View ──────────────────────────────────────────────────────────────
 function htmlSettings(){
   var s=D.settings;
   var nb=s.notificationsEnabled?'<span class="badge" style="background:#22c55e">ON</span>':'<span class="badge" style="background:#4b5060">OFF</span>';
-  var nContent=s.notificationsEnabled
-    ?'<div class="row" style="margin-bottom:10px">'+
-      '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Reminder 1</div><input class="input" type="time" value="'+esc(s.reminderTime1||'05:55')+'" data-s="reminderTime1" data-t="str" /></div>'+
-      '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Reminder 2</div><input class="input" type="time" value="'+esc(s.reminderTime2||'17:55')+'" data-s="reminderTime2" data-t="str" /></div>'+
-    '</div>'+
-    '<button class="btn" style="background:#4b5060;color:#fff;width:100%" data-a="dis-notif">Disable</button>'
-    :'<button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:13px" data-a="en-notif">Enable Notifications</button>';
-
+  var nContent=s.notificationsEnabled?'<div class="row" style="margin-bottom:10px"><div style="flex:1"><div class="lbl" style="margin-bottom:5px">Reminder 1</div><input class="input" type="time" value="'+esc(s.reminderTime1||'05:55')+'" data-s="reminderTime1" data-t="str" /></div><div style="flex:1"><div class="lbl" style="margin-bottom:5px">Reminder 2</div><input class="input" type="time" value="'+esc(s.reminderTime2||'17:55')+'" data-s="reminderTime2" data-t="str" /></div></div><button class="btn" style="background:#4b5060;color:#fff;width:100%" data-a="dis-notif">Disable</button>':'<button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:13px" data-a="en-notif">Enable Notifications</button>';
   return'<div class="section">'+
-    '<div style="margin-bottom:22px"><div class="sec-title">Pay Rates</div>'+
-      '<div class="row" style="margin-bottom:10px">'+
-        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Day Rate (£/hr)</div><input class="input" type="number" step="0.01" value="'+s.dayRate+'" data-s="dayRate" data-t="flt" /></div>'+
-        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Night Rate (£/hr)</div><input class="input" type="number" step="0.01" value="'+s.nightRate+'" data-s="nightRate" data-t="flt" /></div>'+
-      '</div>'+
-      '<div class="row">'+
-        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">OT Day (£/hr)</div><input class="input" type="number" step="0.01" value="'+s.otDayRate+'" data-s="otDayRate" data-t="flt" /></div>'+
-        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">OT Night (£/hr)</div><input class="input" type="number" step="0.01" value="'+s.otNightRate+'" data-s="otNightRate" data-t="flt" /></div>'+
-      '</div>'+
-    '</div>'+
-    '<div style="margin-bottom:22px"><div class="sec-title">Shift Setup</div>'+
-      '<div class="row">'+
-        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Shift Length (hrs)</div><input class="input" type="number" step="0.5" value="'+s.shiftLengthHrs+'" data-s="shiftLengthHrs" data-t="flt" /></div>'+
-        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Unpaid Break (hrs)</div><input class="input" type="number" step="0.25" value="'+s.unpaidBreakHrs+'" data-s="unpaidBreakHrs" data-t="flt" /></div>'+
-      '</div>'+
-    '</div>'+
-    '<div style="margin-bottom:22px"><div class="sec-title">Pay Period</div>'+
-      '<div class="row">'+
-        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Start Date</div><input class="input" type="date" value="'+esc(s.payPeriodStart)+'" data-s="payPeriodStart" data-t="str" /></div>'+
-        '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Length (weeks)</div><input class="input" type="number" step="1" value="'+s.payPeriodWeeks+'" data-s="payPeriodWeeks" data-t="int" /></div>'+
-      '</div>'+
-    '</div>'+
-    '<div style="margin-bottom:22px"><div class="sec-title">Reminders</div>'+
-      '<div class="card"><div class="row-between" style="margin-bottom:12px"><span style="font-size:14px;font-weight:500">Notifications</span>'+nb+'</div>'+nContent+'</div>'+
-    '</div>'+
-    '<div style="margin-bottom:22px"><div class="sec-title">Data</div>'+
-      '<button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:14px;margin-bottom:10px" data-a="export">📋 Export Data for Claude</button>'+
-      '<p style="font-size:12px;color:#6b7080;margin-bottom:18px;line-height:1.5">Exports all your clock records — paste into Claude to verify your pay.</p>'+
-      '<button class="btn" style="background:#ef444422;color:#ef4444;width:100%;padding:14px" data-a="conf-reset">🗑️ Reset All Data</button>'+
-    '</div>'+
-    '<p style="font-size:11px;color:#2a2d35;text-align:center;padding-bottom:8px">Data stored on this device only</p>'+
-  '</div>';
+    '<div style="margin-bottom:22px"><div class="sec-title">Pay Rates</div><div class="row" style="margin-bottom:10px"><div style="flex:1"><div class="lbl" style="margin-bottom:5px">Day (£/hr)</div><input class="input" type="number" step="0.01" value="'+s.dayRate+'" data-s="dayRate" data-t="flt" /></div><div style="flex:1"><div class="lbl" style="margin-bottom:5px">Night (£/hr)</div><input class="input" type="number" step="0.01" value="'+s.nightRate+'" data-s="nightRate" data-t="flt" /></div></div><div class="row" style="margin-bottom:10px"><div style="flex:1"><div class="lbl" style="margin-bottom:5px">OT Day (£/hr)</div><input class="input" type="number" step="0.01" value="'+s.otDayRate+'" data-s="otDayRate" data-t="flt" /></div><div style="flex:1"><div class="lbl" style="margin-bottom:5px">OT Night (£/hr)</div><input class="input" type="number" step="0.01" value="'+s.otNightRate+'" data-s="otNightRate" data-t="flt" /></div></div><div class="row"><div style="flex:1"><div class="lbl" style="margin-bottom:5px">Sick (£/hr)</div><input class="input" type="number" step="0.01" value="'+(s.sickRate||0)+'" data-s="sickRate" data-t="flt" /></div><div style="flex:1"></div></div></div>'+
+    '<div style="margin-bottom:22px"><div class="sec-title">Shift Setup</div><div class="row"><div style="flex:1"><div class="lbl" style="margin-bottom:5px">Shift Length (hrs)</div><input class="input" type="number" step="0.5" value="'+s.shiftLengthHrs+'" data-s="shiftLengthHrs" data-t="flt" /></div><div style="flex:1"><div class="lbl" style="margin-bottom:5px">Paid Hrs/Shift</div><input class="input" type="number" step="0.25" value="'+s.paidHrsPerShift+'" data-s="paidHrsPerShift" data-t="flt" /></div></div></div>'+
+    '<div style="margin-bottom:22px"><div class="sec-title">Pay Period</div><div class="row"><div style="flex:1"><div class="lbl" style="margin-bottom:5px">Start Date</div><input class="input" type="date" value="'+esc(s.payPeriodStart)+'" data-s="payPeriodStart" data-t="str" /></div><div style="flex:1"><div class="lbl" style="margin-bottom:5px">Length (weeks)</div><input class="input" type="number" step="1" value="'+s.payPeriodWeeks+'" data-s="payPeriodWeeks" data-t="int" /></div></div></div>'+
+    '<div style="margin-bottom:22px"><div class="sec-title">Reminders</div><div class="card"><div class="row-between" style="margin-bottom:12px"><span style="font-size:14px;font-weight:500">Notifications</span>'+nb+'</div>'+nContent+'</div></div>'+
+    '<div style="margin-bottom:22px"><div class="sec-title">Data</div><div style="margin-bottom:10px"><div class="lbl" style="margin-bottom:5px">Export from date</div><input class="input" type="date" value="'+esc(s.exportFrom||'')+'" data-s="exportFrom" data-t="str" /></div><button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:14px;margin-bottom:10px" data-a="export">📋 Export Data for Claude</button><p style="font-size:12px;color:#6b7080;margin-bottom:18px;line-height:1.5">Exports clock records from selected date. Paste into Claude to verify pay.</p>'+(s.lastExport?'<p style="font-size:11px;color:#4a9eff;margin-bottom:18px">Last exported: '+esc(s.lastExport)+'</p>':'')+'<button class="btn" style="background:#ef444422;color:#ef4444;width:100%;padding:14px" data-a="conf-reset">🗑️ Reset All Data</button></div><p style="font-size:11px;color:#2a2d35;text-align:center;padding-bottom:8px">Data stored on this device only</p></div>';
 }
 
-// ── Edit Modal ─────────────────────────────────────────────────────────────────
 function htmlEdit(){
-  if(!EDIT)return'';
-  var e=D.entries[EDIT]||{type:'regular',shiftType:D.settings.currentRotation==='nights'?'night':'day',clockIn:'06:00',clockOut:'18:00'};
-  var isOT=e.type==='overtime';
-  var h=paidHrs(e.clockIn,e.clockOut),r=getRate(e.shiftType,isOT),g=h*r;
-  var calcLine=h>0?'<div style="background:#0d1117;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:14px" id="calc-line"><span class="text-muted">Calculated: </span><strong class="text-green">'+h.toFixed(1)+' hrs × £'+r.toFixed(2)+' = £'+g.toFixed(2)+'</strong></div>':'<div id="calc-line"></div>';
-  var typeBtns=['regular','overtime','holiday'].map(function(t){var a=e.type===t,bg=a?(t==='overtime'?'#f97316':t==='holiday'?'#a78bfa':'#22c55e'):'#252830';return'<button class="btn" style="background:'+bg+';color:'+(a?'#fff':'#6b7080')+';flex:1;font-size:12px" data-a="etyp" data-v="'+t+'">'+t+'</button>';}).join('');
-  var shiftBtns=e.type==='holiday'?'':['night','day'].map(function(st){var a=e.shiftType===st,bg=a?(st==='night'?'#312e81':'#78350f'):'#252830',fg=a?(st==='night'?'#c4b5fd':'#fcd34d'):'#6b7080';return'<button class="btn" style="background:'+bg+';color:'+fg+';flex:1" data-a="esft" data-v="'+st+'">'+(st==='night'?'🌙 Night':'☀️ Day')+'</button>';}).join('');
-  var timeInputs=e.type==='holiday'?'':
-    '<div style="margin-bottom:16px"><div class="lbl" style="margin-bottom:8px">Shift Type</div><div class="row">'+shiftBtns+'</div></div>'+
-    '<div class="row" style="margin-bottom:16px">'+
-      '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Clock In</div><input class="input" type="time" id="eci" value="'+esc(e.clockIn||'')+'" /></div>'+
-      '<div style="flex:1"><div class="lbl" style="margin-bottom:5px">Clock Out</div><input class="input" type="time" id="eco" value="'+esc(e.clockOut||'')+'" /></div>'+
-    '</div>'+calcLine;
-  return'<div class="overlay" id="edit-ov">'+
-    '<div class="sheet">'+
-      '<div class="row-between" style="margin-bottom:20px">'+
-        '<h3 style="font-size:16px;font-weight:700;margin:0">'+fDate(pKey(EDIT))+'</h3>'+
-        '<button data-a="cedit" style="background:none;border:none;color:#6b7080;font-size:26px;cursor:pointer;line-height:1">×</button>'+
-      '</div>'+
-      '<div style="margin-bottom:16px"><div class="lbl" style="margin-bottom:8px">Day Type</div><div class="row">'+typeBtns+'</div></div>'+
-      timeInputs+
-      '<button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:14px" data-a="cedit">Done</button>'+
-    '</div>'+
-  '</div>';
+  if(!EDIT)return'';var e=D.entries[EDIT]||{type:'regular',shiftType:D.settings.currentRotation==='nights'?'night':'day',clockIn:'06:00',clockOut:'18:00'};var c=calcEntry(e);
+  var typeBtns=['regular','overtime','holiday','halfholiday','sickness'].map(function(t){var a=e.type===t;return'<button class="btn" style="background:'+(a?typeBg(t):'#252830')+';color:'+(a?'#fff':'#6b7080')+';flex:1;font-size:10px;padding:9px 4px" data-a="etyp" data-v="'+t+'">'+typeLabel(t)+'</button>';}).join('');
+  var noTimes=e.type==='holiday'||e.type==='sickness';
+  var shiftBtns=noTimes?'':['night','day'].map(function(st){var a=e.shiftType===st,bg=a?(st==='night'?'#312e81':'#78350f'):'#252830',fg=a?(st==='night'?'#c4b5fd':'#fcd34d'):'#6b7080';return'<button class="btn" style="background:'+bg+';color:'+fg+';flex:1" data-a="esft" data-v="'+st+'">'+(st==='night'?'🌙 Night':'☀️ Day')+'</button>';}).join('');
+  var timeInputs=noTimes?'':'<div style="margin-bottom:16px"><div class="lbl" style="margin-bottom:8px">Shift Type</div><div class="row">'+shiftBtns+'</div></div><div class="row" style="margin-bottom:16px"><div style="flex:1"><div class="lbl" style="margin-bottom:5px">Clock In</div><input class="input" type="time" id="eci" value="'+esc(e.clockIn||'')+'" /></div><div style="flex:1"><div class="lbl" style="margin-bottom:5px">Clock Out</div><input class="input" type="time" id="eco" value="'+esc(e.clockOut||'')+'" /></div></div>'+(c.hours>0?'<div style="background:#0d1117;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:14px" id="calc-line"><span class="text-muted">Calculated: </span><strong class="text-green">'+c.hours.toFixed(2)+' hrs × £'+c.rate.toFixed(2)+' = £'+c.gross.toFixed(2)+'</strong></div>':'<div id="calc-line"></div>');
+  return'<div class="overlay"><div class="sheet"><div class="row-between" style="margin-bottom:20px"><h3 style="font-size:16px;font-weight:700;margin:0">'+fDate(pKey(EDIT))+'</h3><button data-a="cedit" style="background:none;border:none;color:#6b7080;font-size:26px;cursor:pointer;line-height:1">×</button></div><div style="margin-bottom:16px"><div class="lbl" style="margin-bottom:8px">Day Type</div><div class="row">'+typeBtns+'</div></div>'+timeInputs+'<button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:14px" data-a="cedit">Done</button></div></div>';
 }
+function htmlConfirm(){if(!CONFIRM)return'';return'<div class="overlay"><div class="sheet" style="max-height:none"><p style="font-size:16px;text-align:center;margin-bottom:22px;line-height:1.5">'+esc(CONFIRM.msg)+'</p><div class="row"><button class="btn" style="background:#3a3d45;color:#fff;flex:1;padding:14px" data-a="cno">Cancel</button><button class="btn" style="background:#ef4444;color:#fff;flex:1;padding:14px" data-a="cyes">Confirm</button></div></div></div>';}
+function htmlExport(){if(!EXPORT)return'';return'<div class="overlay"><div class="sheet"><div class="row-between" style="margin-bottom:12px"><h3 style="font-size:15px;font-weight:700;margin:0">Export</h3><button data-a="cexp" style="background:none;border:none;color:#6b7080;font-size:26px;cursor:pointer;line-height:1">×</button></div><p style="font-size:12px;color:#6b7080;margin-bottom:10px">Select all and copy, then paste into Claude:</p><textarea class="input" id="exp-ta" readonly>'+esc(EXPORT)+'</textarea><button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:14px;margin-top:12px" data-a="copy-exp">Copy All</button></div></div>';}
+function htmlNav(){return'<nav class="nav">'+[['today','⏱','Today'],['calendar','📅','Calendar'],['settings','⚙️','Settings']].map(function(x){return'<button class="nav-btn'+(VIEW===x[0]?' active':'')+'" data-a="nav" data-v="'+x[0]+'"><span class="nav-icon">'+x[1]+'</span><span>'+x[2]+'</span></button>';}).join('')+'</nav>';}
+function render(){var app=document.getElementById('app');app.innerHTML=htmlStats()+'<div class="main-scroll">'+(VIEW==='today'?htmlToday():VIEW==='calendar'?htmlCal():htmlSettings())+'</div>'+htmlNav()+htmlEdit()+htmlConfirm()+htmlExport();bindAll();}
 
-// ── Confirm Modal ──────────────────────────────────────────────────────────────
-function htmlConfirm(){
-  if(!CONFIRM)return'';
-  return'<div class="overlay" id="conf-ov">'+
-    '<div class="sheet" style="max-height:none">'+
-      '<p style="font-size:16px;text-align:center;margin-bottom:22px;line-height:1.5">'+esc(CONFIRM.msg)+'</p>'+
-      '<div class="row">'+
-        '<button class="btn" style="background:#3a3d45;color:#fff;flex:1;padding:14px" data-a="cno">Cancel</button>'+
-        '<button class="btn" style="background:#ef4444;color:#fff;flex:1;padding:14px" data-a="cyes">Confirm</button>'+
-      '</div>'+
-    '</div>'+
-  '</div>';
-}
-
-// ── Export Modal ───────────────────────────────────────────────────────────────
-function htmlExport(){
-  if(!EXPORT)return'';
-  return'<div class="overlay" id="exp-ov">'+
-    '<div class="sheet">'+
-      '<div class="row-between" style="margin-bottom:12px">'+
-        '<h3 style="font-size:15px;font-weight:700;margin:0">Clock Data Export</h3>'+
-        '<button data-a="cexp" style="background:none;border:none;color:#6b7080;font-size:26px;cursor:pointer;line-height:1">×</button>'+
-      '</div>'+
-      '<p style="font-size:12px;color:#6b7080;margin-bottom:10px">Select all and copy, then paste into Claude:</p>'+
-      '<textarea class="input" id="exp-ta" readonly>'+esc(EXPORT)+'</textarea>'+
-      '<button class="btn" style="background:#4a9eff;color:#fff;width:100%;padding:14px;margin-top:12px" data-a="copy-exp">Copy All</button>'+
-    '</div>'+
-  '</div>';
-}
-
-// ── Nav ────────────────────────────────────────────────────────────────────────
-function htmlNav(){
-  return'<nav class="nav">'+[['today','⏱','Today'],['calendar','📅','Calendar'],['settings','⚙️','Settings']].map(function(x){
-    return'<button class="nav-btn'+(VIEW===x[0]?' active':'')+'" data-a="nav" data-v="'+x[0]+'"><span class="nav-icon">'+x[1]+'</span><span>'+x[2]+'</span></button>';
-  }).join('')+'</nav>';
-}
-
-// ── Render ─────────────────────────────────────────────────────────────────────
-function render(){
+function bindAll(){
   var app=document.getElementById('app');
-  var content=VIEW==='today'?htmlToday():VIEW==='calendar'?htmlCal():htmlSettings();
-  app.innerHTML=htmlStats()+'<div class="main-scroll">'+content+'</div>'+htmlNav()+htmlEdit()+htmlConfirm()+htmlExport();
-  bind();
-}
-
-// ── Bind Events ────────────────────────────────────────────────────────────────
-function bind(){
-  var app=document.getElementById('app');
-
-  // Setting inputs
-  var inputs=app.querySelectorAll('[data-s]');
-  for(var i=0;i<inputs.length;i++){
-    inputs[i].addEventListener('change',function(ev){
-      var k=ev.target.dataset.s,tp=ev.target.dataset.t,v=ev.target.value;
-      if(tp==='flt')v=parseFloat(v)||0;
-      else if(tp==='int')v=parseInt(v)||1;
-      setSetting(k,v);schedRem();
-    });
-  }
-
-  // Edit modal time inputs
+  app.querySelectorAll('[data-s]').forEach(function(inp){inp.addEventListener('change',function(ev){var k=ev.target.dataset.s,tp=ev.target.dataset.t,v=ev.target.value;if(tp==='flt')v=parseFloat(v)||0;else if(tp==='int')v=parseInt(v)||1;setSetting(k,v);schedRem();});});
   var eci=document.getElementById('eci'),eco=document.getElementById('eco');
   if(eci&&EDIT)eci.addEventListener('change',function(ev){patchEntry(EDIT,'clockIn',ev.target.value);updateCalcLine();});
   if(eco&&EDIT)eco.addEventListener('change',function(ev){patchEntry(EDIT,'clockOut',ev.target.value);updateCalcLine();});
-
-  // Click delegation
   app.addEventListener('click',onClick);
 }
-
-function updateCalcLine(){
-  if(!EDIT)return;
-  var e=D.entries[EDIT];if(!e)return;
-  var isOT=e.type==='overtime';
-  var h=paidHrs(e.clockIn,e.clockOut),r=getRate(e.shiftType,isOT),g=h*r;
-  var el=document.getElementById('calc-line');
-  if(el&&h>0)el.innerHTML='<span class="text-muted">Calculated: </span><strong class="text-green">'+h.toFixed(1)+' hrs × £'+r.toFixed(2)+' = £'+g.toFixed(2)+'</strong>';
-}
+function updateCalcLine(){if(!EDIT)return;var e=D.entries[EDIT];if(!e)return;var c=calcEntry(e);var el=document.getElementById('calc-line');if(el&&c.hours>0)el.innerHTML='<span class="text-muted">Calculated: </span><strong class="text-green">'+c.hours.toFixed(2)+' hrs × £'+c.rate.toFixed(2)+' = £'+c.gross.toFixed(2)+'</strong>';}
 
 function onClick(ev){
   var btn=ev.target.closest('[data-a]');if(!btn)return;
-  var a=btn.dataset.a,k=btn.dataset.k,v=btn.dataset.v;
-  var tok=toKey(new Date());
+  var a=btn.dataset.a,k=btn.dataset.k,v=btn.dataset.v,tok=toKey(new Date());
   switch(a){
-    case'cin':       clockIn();break;
-    case'cout':      clockOut();break;
-    case'tog-ot':    dayType(tok,D.entries[tok]&&D.entries[tok].type==='overtime'?'regular':'overtime');break;
-    case'tog-hol':   dayType(tok,D.entries[tok]&&D.entries[tok].type==='holiday'?'regular':'holiday');break;
+    case'cin':clockIn();break;
+    case'cout':clockOutFor(k||tok);break;
+    case'tog-ot':dayType(tok,D.entries[tok]&&D.entries[tok].type==='overtime'?'regular':'overtime');break;
+    case'tog-hol':dayType(tok,D.entries[tok]&&D.entries[tok].type==='holiday'?'regular':'holiday');break;
+    case'tog-halfhol':dayType(tok,D.entries[tok]&&D.entries[tok].type==='halfholiday'?'regular':'halfholiday');break;
+    case'tog-sick':dayType(tok,D.entries[tok]&&D.entries[tok].type==='sickness'?'regular':'sickness');break;
     case'set-nights':setSetting('currentRotation','nights');break;
-    case'set-days':  setSetting('currentRotation','days');break;
-    case'nav':       VIEW=v;SEL=null;render();break;
-    case'cprev':     if(CAL_M===0){CAL_M=11;CAL_Y--;}else CAL_M--;render();break;
-    case'cnext':     if(CAL_M===11){CAL_M=0;CAL_Y++;}else CAL_M++;render();break;
-    case'csel':      SEL=SEL===k?null:k;render();break;
-    case'edit':      EDIT=k;render();break;
-    case'cedit':     EDIT=null;render();break;
-    case'add-entry': patchEntry(k,'type','regular');EDIT=k;render();break;
-    case'set-hol':   dayType(k,'holiday');break;
-    case'conf-del':  CONFIRM={msg:'Delete this entry?',action:function(){delEntry(k);}};render();break;
+    case'set-days':setSetting('currentRotation','days');break;
+    case'nav':VIEW=v;SEL=null;render();break;
+    case'cprev':if(CAL_M===0){CAL_M=11;CAL_Y--;}else CAL_M--;render();break;
+    case'cnext':if(CAL_M===11){CAL_M=0;CAL_Y++;}else CAL_M++;render();break;
+    case'csel':SEL=SEL===k?null:k;render();break;
+    case'edit':EDIT=k;render();break;
+    case'cedit':EDIT=null;render();break;
+    case'add-entry':patchEntry(k,'type','regular');EDIT=k;render();break;
+    case'set-hol':dayType(k,'holiday');break;
+    case'conf-del':CONFIRM={msg:'Delete this entry?',action:function(){delEntry(k);}};render();break;
     case'conf-reset':CONFIRM={msg:'Delete ALL data? This cannot be undone.',action:function(){try{localStorage.removeItem(SK);}catch(e){}D=load();CONFIRM=null;render();toast('All data cleared');}};render();break;
-    case'cno':       CONFIRM=null;render();break;
-    case'cyes':      if(CONFIRM){CONFIRM.action();}break;
-    case'export':    doExport();break;
-    case'cexp':      EXPORT=null;render();break;
-    case'copy-exp':  var ta=document.getElementById('exp-ta');if(ta&&navigator.clipboard)navigator.clipboard.writeText(ta.value).then(function(){toast('Copied ✓');});break;
-    case'en-notif':  enableNotif();break;
-    case'dis-notif': setSetting('notificationsEnabled',false);break;
-    case'etyp':      if(EDIT){var base=D.entries[EDIT]||{};var ne=Object.assign({},base,{type:v});if(v==='holiday'){delete ne.clockIn;delete ne.clockOut;}var ents=Object.assign({},D.entries);ents[EDIT]=ne;D=Object.assign({},D,{entries:ents});persist(D);render();}break;
-    case'esft':      if(EDIT){patchEntry(EDIT,'shiftType',v);render();}break;
+    case'cno':CONFIRM=null;render();break;
+    case'cyes':if(CONFIRM)CONFIRM.action();break;
+    case'export':doExport();break;
+    case'cexp':EXPORT=null;render();break;
+    case'copy-exp':var ta=document.getElementById('exp-ta');if(ta&&navigator.clipboard)navigator.clipboard.writeText(ta.value).then(function(){toast('Copied ✓');});break;
+    case'en-notif':enableNotif();break;
+    case'dis-notif':setSetting('notificationsEnabled',false);break;
+    case'etyp':if(EDIT){var base=D.entries[EDIT]||{};var ne=Object.assign({},base,{type:v});if(v==='holiday'||v==='sickness'){delete ne.clockIn;delete ne.clockOut;}var ents=Object.assign({},D.entries);ents[EDIT]=ne;D=Object.assign({},D,{entries:ents});persist(D);render();}break;
+    case'esft':if(EDIT){patchEntry(EDIT,'shiftType',v);render();}break;
   }
 }
-
-// ── Tick ────────────────────────────────────────────────────────────────────────
-function tick(){
-  var now=new Date(),cl=document.getElementById('live-clock');
-  if(cl)cl.innerHTML=pad(now.getHours())+':'+pad(now.getMinutes())+'<span style="font-size:22px;color:#6b7080">:'+pad(now.getSeconds())+'</span>';
-  var k=toKey(now),e=D.entries[k];
-  if(e&&e.clockIn&&!e.clockOut){
-    var cp=e.clockIn.split(':').map(Number),sm=cp[0]*60+cp[1],nm=now.getHours()*60+now.getMinutes();
-    var diff=nm-sm;if(diff<0)diff+=1440;
-    var elH=Math.floor(diff/60),elM=diff%60,rem=D.settings.shiftLengthHrs*60-diff;
-    var rH=Math.floor(Math.max(0,rem)/60),rM=Math.floor(Math.max(0,rem)%60);
-    var elEl=document.getElementById('el-val'),remEl=document.getElementById('rem-val');
-    if(elEl)elEl.textContent=elH+'h '+pad(elM)+'m';
-    if(remEl){remEl.textContent=rem>0?rH+'h '+pad(rM)+'m':'Done ✓';remEl.style.color=rem<=0?'#22c55e':'#f59e0b';}
-  }
-}
-
-// ── Init ───────────────────────────────────────────────────────────────────────
-render();
-setInterval(tick,1000);
-schedRem();
+function tick(){var now=new Date(),cl=document.getElementById('live-clock');if(cl)cl.innerHTML=pad(now.getHours())+':'+pad(now.getMinutes())+'<span style="font-size:22px;color:#6b7080">:'+pad(now.getSeconds())+'</span>';var active=getActiveShift();if(active&&active.entry.clockIn&&!active.entry.clockOut){var cp=active.entry.clockIn.split(':').map(Number),ciDate=pKey(active.key);ciDate.setHours(cp[0],cp[1],0,0);var diff=Math.floor((now.getTime()-ciDate.getTime())/60000);var elH=Math.floor(diff/60),elM=diff%60,rem=D.settings.shiftLengthHrs*60-diff;var rH=Math.floor(Math.max(0,rem)/60),rM=Math.floor(Math.max(0,rem)%60);var elEl=document.getElementById('el-val'),remEl=document.getElementById('rem-val');if(elEl)elEl.textContent=elH+'h '+pad(elM)+'m';if(remEl){remEl.textContent=rem>0?rH+'h '+pad(rM)+'m':'Done ✓';remEl.style.color=rem<=0?'#22c55e':'#f59e0b';}}}
+render();setInterval(tick,1000);schedRem();
 if('serviceWorker'in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(e){console.log('SW:',e);});});
 </script>
 </body>
